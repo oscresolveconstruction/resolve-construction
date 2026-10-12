@@ -1,0 +1,179 @@
+
+// use prisma-8
+
+model Project {
+  id            Int               @id @default(autoincrement())
+  name          String
+  client        String
+  customerId    Int?
+  description   String?
+  contractValue Decimal
+  currency      String            @default("GBP")
+  startDate     TimestamptzString?
+  status        String            @default("Planning")
+  createdAt     TimestamptzString @default(now())
+  updatedAt     temporal.updatedAtString()
+
+  expenses   Expense[]
+  payments   Payment[]
+  invoices   Invoice[]
+  labour     Labour[]
+  photos     ProjectPhoto[]
+  extraWorks ExtraWork[]
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+}
+
+model Customer {
+  id          Int               @id @default(autoincrement())
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  projects Project[]
+}
+
+model Expense {
+  id              Int               @id @default(autoincrement())
+  projectId       Int?
+  date            TimestamptzString @default(now())
+  supplier        String
+  category        String
+  description     String?
+  amount          Decimal
+  currency        String            @default("GBP")
+  exchangeRate    Decimal?
+
+  receiptFileName String?
+  receiptFilePath String?
+  receiptMimeType String?
+
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  project Project? @relation(fields: [projectId], references: [id])
+}
+
+model Payment {
+  id          Int               @id @default(autoincrement())
+  projectId   Int
+  invoiceId   Int?
+  date        TimestamptzString @default(now())
+  amount      Decimal
+  currency    String            @default("GBP")
+  reference   String?
+  description String?
+
+  // PAYMENT METHOD AND OPTIONAL RECEIPT
+  paymentMethod   String?
+  receiptFileName String?
+  receiptFilePath String?
+  receiptMimeType String?
+
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  project Project  @relation(fields: [projectId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+}
+
+model Invoice {
+  id            Int               @id @default(autoincrement())
+  projectId     Int
+  invoiceNumber String
+  issueDate     TimestamptzString @default(now())
+  dueDate       TimestamptzString?
+  amount        Decimal
+  currency      String            @default("GBP")
+  status        String            @default("Draft")
+  description   String?
+  createdAt     TimestamptzString @default(now())
+  updatedAt     temporal.updatedAtString()
+
+  project  Project   @relation(fields: [projectId], references: [id])
+  payments Payment[]
+}
+
+model Worker {
+  id          Int               @id @default(autoincrement())
+  name        String
+  role        String?
+  hourlyRate  Decimal
+  currency    String            @default("GBP")
+  status      String            @default("Active")
+  phone       String?
+  email       String?
+  notes       String?
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  labour Labour[]
+}
+
+model Labour {
+  id           Int               @id @default(autoincrement())
+  projectId    Int
+  workerId     Int
+  date         TimestamptzString @default(now())
+  hours        Decimal
+  hourlyRate   Decimal
+  amount       Decimal
+  currency     String            @default("GBP")
+  exchangeRate Decimal?
+  description  String?
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+
+  project Project @relation(fields: [projectId], references: [id])
+  worker  Worker  @relation(fields: [workerId], references: [id])
+}
+
+// PHOTOS FOR EACH CONSTRUCTION PROJECT
+
+model ProjectPhoto {
+  id          Int               @id @default(autoincrement())
+  projectId   Int
+  fileName    String
+  filePath    String
+  mimeType    String
+  category    String            @default("In Progress")
+  description String?
+  takenAt     TimestamptzString?
+  createdAt   TimestamptzString @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+// PRIVATE ACCOUNTS FOR RESOLVE CONSTRUCTION OWNERS
+
+model AppUser {
+  id           Int               @id @default(autoincrement())
+  name         String
+  email        String            @unique
+  passwordHash String
+  isActive     Boolean           @default(true)
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+}
+
+// ADDITIONAL WORKS FOR EACH CONSTRUCTION PROJECT
+
+model ExtraWork {
+  id          Int               @id @default(autoincrement())
+  projectId   Int
+  date        TimestamptzString @default(now())
+  title       String
+  description String?
+  amount      Decimal
+  currency    String            @default("GBP")
+  status      String            @default("Pending")
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  project Project @relation(fields: [projectId], references: [id])
+}
