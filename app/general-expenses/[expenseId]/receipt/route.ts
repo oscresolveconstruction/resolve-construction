@@ -1,22 +1,46 @@
-
 import { db } from "../../../../src/prisma/db";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { getSessionUserId } from "../../../lib/auth";
+import { getSupabaseStorage } from "../../../lib/supabase-storage";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteContext = {
   params: Promise<{ expenseId: string }>;
 };
 
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+];
+
 export async function GET(
   _request: Request,
   { params }: RouteContext
 ) {
+  // Only authenticated, active owners can view receipts.
+  const userId = await getSessionUserId();
+
+  if (!userId) {
+    return new Response("Unauthorized.", { status: 401 });
+  }
+
+  const user = await db.orm.public.AppUser.first({
+    id: userId,
+  });
+
+  if (!user || !user.isActive) {
+    return new Response("Unauthorized.", { status: 401 });
+  }
+
   const { expenseId: rawExpenseId } = await params;
   const expenseId = Number(rawExpenseId);
 
-  if (!Number.isInteger(expenseId) || expenseId <= 0) {
+  if (
+    !Number.isSafeInteger(expenseId) ||
+    expenseId <= 0
+  ) {
     return new Response("Invalid expense.", { status: 400 });
   }
 
@@ -29,37 +53,42 @@ export async function GET(
     return new Response("Expense not found.", { status: 404 });
   }
 
-  if (!expense.receiptFilePath || !expense.receiptMimeType) {
+  const storagePath = expense.receiptFilePath;
+  const mimeType = expense.receiptMimeType;
+
+  if (!storagePath || !mimeType) {
     return new Response("Receipt not found.", { status: 404 });
   }
 
-  const fileName = expense.receiptFilePath;
-  const mimeType = expense.receiptMimeType;
-
-  const allowedTypes = [
-    "application/pdf",
-    "image/jpeg",
-    "image/png",
-  ];
-
+  // Only accept new receipt paths stored in Supabase.
   if (
-    !/^[0-9a-f-]{36}\.(pdf|jpg|png)$/.test(fileName) ||
-    !allowedTypes.includes(mimeType)
+    !/^receipts\/[0-9a-f-]{36}\.(pdf|jpg|png)$/.test(
+      storagePath
+    ) ||
+    !ALLOWED_TYPES.includes(mimeType)
   ) {
-    return new Response("Invalid receipt.", { status: 400 });
+    return new Response("Receipt not available.", {
+      status: 404,
+    });
   }
 
-  const fullPath = path.join(
-    process.cwd(),
-    "storage",
-    "receipts",
-    fileName
-  );
-
   try {
-    const file = await readFile(fullPath);
+    const { data, error } =
+      await getSupabaseStorage().download(storagePath);
 
-    return new Response(new Uint8Array(file), {
+    if (error || !data) {
+      console.error("Unable to download receipt:", error);
+
+      return new Response("Receipt not available.", {
+        status: 404,
+      });
+    }
+
+    const bytes = new Uint8Array(
+      await data.arrayBuffer()
+    );
+
+    return new Response(bytes, {
       status: 200,
       headers: {
         "Content-Type": mimeType,
@@ -69,17 +98,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return new Response("Receipt file not found.", {
-        status: 404,
-      });
-    }
-
     console.error("Error reading receipt:", error);
 
     return new Response("Unable to open receipt.", {

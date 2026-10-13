@@ -1,18 +1,12 @@
-
 "use server";
 
 import { db } from "../../src/prisma/db";
 import { getSessionUserId } from "../lib/auth";
 import { redirect } from "next/navigation";
-import { mkdir, writeFile, unlink } from "node:fs/promises";
-import path from "node:path";
-import { randomUUID } from "node:crypto";
-
-const RECEIPTS_DIR = path.join(
-  process.cwd(),
-  "storage",
-  "receipts"
-);
+import {
+  saveReceipt,
+  removeReceipt,
+} from "../lib/receipt-storage";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -57,73 +51,6 @@ function getReceiptFile(formData: FormData) {
   }
 
   return file;
-}
-
-async function saveReceipt(file: File) {
-  await mkdir(RECEIPTS_DIR, { recursive: true });
-
-  const extension = ALLOWED_TYPES[file.type];
-  const storedName = `${randomUUID()}${extension}`;
-  const fullPath = path.join(RECEIPTS_DIR, storedName);
-
-  const bytes = Buffer.from(await file.arrayBuffer());
-
-  const isPdf =
-    bytes.subarray(0, 5).toString("ascii") === "%PDF-";
-
-  const isJpg =
-    bytes.length >= 3 &&
-    bytes[0] === 0xff &&
-    bytes[1] === 0xd8 &&
-    bytes[2] === 0xff;
-
-  const isPng =
-    bytes.length >= 8 &&
-    bytes.subarray(0, 8).equals(
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
-    );
-
-  const valid =
-    (file.type === "application/pdf" && isPdf) ||
-    (file.type === "image/jpeg" && isJpg) ||
-    (file.type === "image/png" && isPng);
-
-  if (!valid) {
-    throw new Error(
-      "The receipt file is not a valid PDF, JPG or PNG."
-    );
-  }
-
-  await writeFile(fullPath, bytes, { flag: "wx" });
-
-  return {
-    receiptFileName: path.basename(file.name),
-    receiptFilePath: storedName,
-    receiptMimeType: file.type,
-  };
-}
-
-async function removeReceipt(storedName: string | null) {
-  if (!storedName) return;
-
-  if (!/^[0-9a-f-]{36}\.(pdf|jpg|png)$/.test(storedName)) {
-    return;
-  }
-
-  try {
-    await unlink(path.join(RECEIPTS_DIR, storedName));
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return;
-    }
-
-    throw error;
-  }
 }
 
 function parseExpense(formData: FormData) {
@@ -257,7 +184,6 @@ function getExpenseRedirect(projectId: number | null) {
 }
 
 export async function createExpense(formData: FormData) {
-  // Verify authorization before processing any expense.
   await requireOwner();
 
   const data = parseExpense(formData);
@@ -287,7 +213,14 @@ export async function createExpense(formData: FormData) {
     });
   } catch (error) {
     if (receipt) {
-      await removeReceipt(receipt.receiptFilePath);
+      try {
+        await removeReceipt(receipt.receiptFilePath);
+      } catch (cleanupError) {
+        console.error(
+          "Could not clean up uploaded receipt:",
+          cleanupError
+        );
+      }
     }
 
     throw error;
@@ -297,7 +230,6 @@ export async function createExpense(formData: FormData) {
 }
 
 export async function updateExpense(formData: FormData) {
-  // Verify authorization before modifying any expense.
   await requireOwner();
 
   const expenseId = Number(formData.get("expenseId"));
@@ -318,8 +250,7 @@ export async function updateExpense(formData: FormData) {
     throw new Error("Expense not found.");
   }
 
-  // Prevent accidentally moving an expense between
-  // a project and general expenses during editing.
+  // Prevent moving expenses between sections.
   if (expense.projectId !== data.projectId) {
     throw new Error(
       "The expense project cannot be changed here."
@@ -356,21 +287,34 @@ export async function updateExpense(formData: FormData) {
       });
   } catch (error) {
     if (newReceipt) {
-      await removeReceipt(newReceipt.receiptFilePath);
+      try {
+        await removeReceipt(newReceipt.receiptFilePath);
+      } catch (cleanupError) {
+        console.error(
+          "Could not clean up uploaded receipt:",
+          cleanupError
+        );
+      }
     }
 
     throw error;
   }
 
   if (newReceipt && expense.receiptFilePath) {
-    await removeReceipt(expense.receiptFilePath);
+    try {
+      await removeReceipt(expense.receiptFilePath);
+    } catch (error) {
+      console.error(
+        "Could not remove previous receipt:",
+        error
+      );
+    }
   }
 
   redirect(getExpenseRedirect(data.projectId));
 }
 
 export async function deleteExpense(formData: FormData) {
-  // Verify authorization before deleting any expense.
   await requireOwner();
 
   const expenseId = Number(formData.get("expenseId"));
@@ -418,7 +362,14 @@ export async function deleteExpense(formData: FormData) {
     .delete();
 
   if (expense.receiptFilePath) {
-    await removeReceipt(expense.receiptFilePath);
+    try {
+      await removeReceipt(expense.receiptFilePath);
+    } catch (error) {
+      console.error(
+        "Could not remove deleted expense receipt:",
+        error
+      );
+    }
   }
 
   redirect(getExpenseRedirect(projectId));
