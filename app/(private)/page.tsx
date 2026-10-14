@@ -327,7 +327,7 @@ export default async function Home({ searchParams }: DashboardProps) {
 
 
 
-        <form method="get" className="mt-8 flex flex-wrap items-end gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <form method="get" className="mt-8 grid min-w-0 grid-cols-1 gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end lg:p-5 [&>div]:min-w-0 [&_input]:max-w-full [&_select]:max-w-full">
           <div>
             <label htmlFor="period" className="mb-2 block text-sm font-semibold text-gray-700">Financial period</label>
             <select id="period" name="period" defaultValue={period} className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900">
@@ -421,7 +421,9 @@ export default async function Home({ searchParams }: DashboardProps) {
 
               <p className="text-sm font-medium text-gray-500">{card.title}</p>
 
-              <p className={`mt-3 text-3xl font-bold ${card.color}`}>{card.value}</p>
+              <p className={`mt-3 break-words text-2xl font-bold sm:text-3xl ${card.color}`}>
+  {card.value}
+</p>
 
               <p className="mt-2 text-sm text-gray-500">{card.detail}</p>
 
@@ -435,7 +437,7 @@ export default async function Home({ searchParams }: DashboardProps) {
 
 
 
-        <section className="mt-10 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <section className="mt-10 min-w-0 max-w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
 
           <div className="flex flex-wrap items-center justify-between gap-3 p-6">
 

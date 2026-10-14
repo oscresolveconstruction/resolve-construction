@@ -1,7 +1,6 @@
 
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { redirect } from "next/navigation";
 import "./globals.css";
 import Sidebar from "./components/Sidebar";
 import { getSessionUserId } from "./lib/auth";
@@ -42,9 +41,12 @@ export default async function RootLayout({
     >
       <body>
         {isAuthenticated ? (
-          <div className="flex min-h-screen bg-gray-100">
+          <div className="flex min-h-screen min-w-0 bg-gray-100">
             <Sidebar />
-            <div className="min-w-0 flex-1">{children}</div>
+
+            <main className="min-w-0 flex-1 pt-16 md:pt-0">
+              {children}
+            </main>
           </div>
         ) : (
           <div className="min-h-screen bg-gray-100">
