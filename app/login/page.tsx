@@ -27,13 +27,18 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        setError(
-          response.status === 401
-            ? "Invalid email or password."
-            : "Unable to sign in. Please try again."
-        );
-        return;
-      }
+  if (response.status === 429) {
+    setError(
+      "Too many login attempts. Please try again in 15 minutes."
+    );
+  } else if (response.status === 401) {
+    setError("Invalid email or password.");
+  } else {
+    setError("Unable to sign in. Please try again.");
+  }
+
+  return;
+}
 
       window.location.href = "/";
     } catch {

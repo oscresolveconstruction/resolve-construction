@@ -45,3 +45,4 @@ dist/
 
 /storage/receipts/
 /private-uploads/
+*.bak
