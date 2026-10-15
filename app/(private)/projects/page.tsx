@@ -1,194 +1,169 @@
-
+﻿
 import Link from "next/link";
-import { db } from "@/src/prisma/db";
+import { db } from "../../../src/prisma/db";
 
-function formatHourlyRate(amount: number, currency: string) {
-  return `${currency === "EUR" ? "€" : "£"}${amount.toFixed(2)}/h`;
-}
+export default async function Projects() {
+  const projects = await db.orm.public.Project.all();
 
-export default async function WorkersPage() {
-  const workers = await db.orm.public.Worker.all();
+  function formatAmount(amount: number, currency: string) {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: currency === "EUR" ? "EUR" : "GBP",
+    }).format(amount);
+  }
 
   return (
     <main className="min-w-0 bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         {/* HEADER */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-              Workers
+              Projects
             </h1>
-
-            <p className="mt-2 text-sm text-gray-500 sm:text-base">
-              Manage workers and their standard hourly rates.
+            <p className="mt-2 text-gray-500">
+              Manage all your construction projects
             </p>
           </div>
 
           <Link
-            href="/workers/new"
-            className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600"
+            href="/projects/new"
+            className="rounded-xl bg-orange-500 px-5 py-3 text-center font-semibold text-white hover:bg-orange-600"
           >
-            + Add Worker
+            + New Project
           </Link>
         </div>
 
-        {workers.length === 0 ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">
-              No workers yet
-            </h2>
-
-            <p className="mb-5 mt-2 text-sm text-gray-500">
-              Add your first worker to start recording labour hours.
-            </p>
-
+        {/* MOBILE PROJECT CARDS */}
+        <div className="mt-6 space-y-4 md:hidden">
+          {projects.map((project) => (
             <Link
-              href="/workers/new"
-              className="font-semibold text-orange-600 hover:underline"
+              key={project.id}
+              href={`/projects/${project.id}`}
+              className="block min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
             >
-              Add your first worker →
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* MOBILE CARDS */}
-            <div className="space-y-4 md:hidden">
-              {workers.map((worker) => (
-                <article
-                  key={worker.id}
-                  className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="break-words text-lg font-bold text-gray-900">
-                        {worker.name}
-                      </h2>
-
-                      <p className="mt-1 text-sm text-gray-500">
-                        {worker.role || "No trade specified"}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                        worker.status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {worker.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-gray-500">
-                        Hourly Rate
-                      </span>
-
-                      <span className="text-right font-bold text-gray-900">
-                        {formatHourlyRate(
-                          Number(worker.hourlyRate),
-                          worker.currency
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-sm text-gray-500">
-                        Phone
-                      </span>
-
-                      <span className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
-                        {worker.phone || "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Link
-                    href={`/workers/${worker.id}/edit`}
-                    className="mt-5 flex w-full items-center justify-center rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 font-semibold text-orange-700 transition hover:bg-orange-100"
-                  >
-                    Edit Worker →
-                  </Link>
-                </article>
-              ))}
-            </div>
-
-            {/* DESKTOP TABLE */}
-            <div className="hidden min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:block">
-              <div className="max-w-full overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left">
-                  <thead className="border-b border-gray-200 bg-gray-50">
-                    <tr className="text-sm text-gray-500">
-                      <th className="px-6 py-4 font-medium">Worker</th>
-                      <th className="px-6 py-4 font-medium">
-                        Role / Trade
-                      </th>
-                      <th className="px-6 py-4 font-medium">
-                        Hourly Rate
-                      </th>
-                      <th className="px-6 py-4 font-medium">Phone</th>
-                      <th className="px-6 py-4 font-medium">Status</th>
-                      <th className="px-6 py-4 text-right font-medium">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-gray-100">
-                    {workers.map((worker) => (
-                      <tr
-                        key={worker.id}
-                        className="hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-4 font-semibold text-gray-900">
-                          {worker.name}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {worker.role || "—"}
-                        </td>
-
-                        <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                          {formatHourlyRate(
-                            Number(worker.hourlyRate),
-                            worker.currency
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600">
-                          {worker.phone || "—"}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                              worker.status === "Active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {worker.status}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4 text-right">
-                          <Link
-                            href={`/workers/${worker.id}/edit`}
-                            className="font-semibold text-orange-600 hover:underline"
-                          >
-                            Edit
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="min-w-0 break-words text-lg font-bold text-gray-900">
+                  {project.name}
+                </h2>
+                <span className="shrink-0 text-orange-600">→</span>
               </div>
+
+              {project.description && (
+                <p className="mt-2 break-words text-sm text-gray-500">
+                  {project.description}
+                </p>
+              )}
+
+              <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
+                <div className="flex justify-between gap-3">
+                  <span className="text-sm text-gray-500">Client</span>
+                  <span className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
+                    {project.client}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="shrink-0 text-sm text-gray-500">
+                    Contract Value
+                  </span>
+                  <span className="min-w-0 break-words text-right font-bold text-gray-900">
+                    {formatAmount(
+                      Number(project.contractValue),
+                      project.currency
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-500">Status</span>
+                  <span className="max-w-[60%] break-words rounded-full bg-orange-50 px-3 py-1 text-center text-xs font-semibold text-orange-700">
+                    {project.status}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+
+          {projects.length === 0 && (
+            <div className="rounded-xl bg-white p-8 text-center text-gray-500">
+              No projects yet. Create your first project.
             </div>
-          </>
-        )}
+          )}
+        </div>
+
+        {/* DESKTOP PROJECTS TABLE */}
+        <div className="mt-6 hidden min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:block">
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full min-w-[850px] text-left">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-sm font-semibold text-gray-600">
+                    Project
+                  </th>
+                  <th className="px-6 py-4 text-sm font-semibold text-gray-600">
+                    Client
+                  </th>
+                  <th className="px-6 py-4 text-sm font-semibold text-gray-600">
+                    Contract Value
+                  </th>
+                  <th className="px-6 py-4 text-sm font-semibold text-gray-600">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {projects.map((project) => (
+                  <tr
+                    key={project.id}
+                    className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                  >
+                    <td className="px-6 py-5">
+                      <Link
+                        href={`/projects/${project.id}`}
+                        className="font-semibold text-gray-900 hover:text-orange-600"
+                      >
+                        {project.name}
+                      </Link>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {project.description || "No description"}
+                      </p>
+                    </td>
+
+                    <td className="px-6 py-5 text-gray-700">
+                      {project.client}
+                    </td>
+
+                    <td className="whitespace-nowrap px-6 py-5 font-semibold text-gray-900">
+                      {formatAmount(
+                        Number(project.contractValue),
+                        project.currency
+                      )}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span className="rounded-full bg-orange-50 px-3 py-1 text-sm font-medium text-orange-700">
+                        {project.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+                {projects.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-6 py-12 text-center text-gray-500"
+                    >
+                      No projects yet. Create your first project.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </main>
   );
