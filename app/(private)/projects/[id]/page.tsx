@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import { db } from "../../../../src/prisma/db";
 
+import DeleteProjectButton from "./DeleteProjectButton";
+
 export const dynamic = "force-dynamic";
 
 type ProjectPageProps = {
@@ -471,6 +473,11 @@ export default async function ProjectPage({
                 Payments
 
               </Link>
+
+              <DeleteProjectButton
+                projectId={projectId}
+                projectName={project.name}
+              />
 
             </div>
 
