@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/src/prisma/db";
 import { updateWorker } from "@/app/actions/workers";
+import DeleteRecordButton from "../../../components/DeleteRecordButton";
 
 type Props = {
   params: Promise<{
@@ -24,6 +25,10 @@ export default async function EditWorkerPage({ params }: Props) {
   if (!worker) {
     notFound();
   }
+
+  const hasLabourHistory = Boolean(
+    await db.orm.public.Labour.first({ workerId })
+  );
 
   const updateWorkerWithId = updateWorker.bind(null, workerId);
 
@@ -187,6 +192,13 @@ export default async function EditWorkerPage({ params }: Props) {
           </button>
         </div>
       </form>
+
+      <DeleteRecordButton
+        kind="worker"
+        recordId={workerId}
+        recordName={worker.name}
+        blocked={hasLabourHistory}
+      />
     </div>
   );
 }

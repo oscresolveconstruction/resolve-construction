@@ -1,8 +1,8 @@
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "../../../../../src/prisma/db";
 import { updateCustomer } from "../../../../actions/customers";
+import DeleteRecordButton from "../../../components/DeleteRecordButton";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -25,6 +25,10 @@ export default async function EditCustomerPage({
   if (!customer) {
     notFound();
   }
+
+  const hasProjects = Boolean(
+    await db.orm.public.Project.first({ customerId })
+  );
 
   const inputClass =
     "mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100";
@@ -182,7 +186,15 @@ export default async function EditCustomerPage({
             </button>
           </div>
         </form>
+
+        <DeleteRecordButton
+          kind="customer"
+          recordId={customerId}
+          recordName={customer.name}
+          blocked={hasProjects}
+        />
       </div>
     </main>
   );
 }
+
