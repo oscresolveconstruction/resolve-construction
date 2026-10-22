@@ -96,11 +96,17 @@ export async function deleteWorker(formData: FormData) {
            SELECT 1 FROM public."Labour" AS l
            WHERE l."workerId" = w."id"
          )
+         AND NOT EXISTS (
+           SELECT 1 FROM public."MonthlyPayroll" AS mp
+           WHERE mp."workerId" = w."id"
+         )
        RETURNING w."id"`,
       [id]
     );
     if (deleted.rowCount !== 1) {
-      throw new Error("Worker has labour history and cannot be deleted.");
+      throw new Error(
+        "Worker has labour or monthly payroll history and cannot be deleted. Set the worker to Inactive instead."
+      );
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -113,5 +119,6 @@ export async function deleteWorker(formData: FormData) {
   }
   revalidatePath("/workers");
   revalidatePath("/labour");
+  revalidatePath("/monthly-payroll");
   redirect("/workers");
 }

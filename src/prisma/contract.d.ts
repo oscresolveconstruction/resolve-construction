@@ -34,9 +34,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'4838c940fbcf637cba119f69b42d6efae32d9aa2ecc7dd8350e15c84b198538e'>;
+  StorageHashBase<'7f257ff2a991df55371d08869afe1bcce24128dfba16995b4414cc41545c12ab'>;
 export type ExecutionHash =
-  ExecutionHashBase<'36dd7d6478a490fd4dc413847d6ea57bda91cb2a6c9e906073aa5697cb380ee7'>;
+  ExecutionHashBase<'780c24ded2975caecd9afa5c9e6ebc0be07f48dad13d4f73fd468a5999fc524e'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -325,6 +325,16 @@ export type FieldOutputTypes = {
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly workerId: CodecTypes['pg/int4@1']['output'];
     };
+    readonly MonthlyPayroll: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly employerSocialInsurance: CodecTypes['pg/numeric@1']['output'];
+      readonly grossPay: CodecTypes['pg/numeric@1']['output'];
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly month: CodecTypes['pg/text@1']['output'];
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly workerId: CodecTypes['pg/int4@1']['output'];
+    };
     readonly Payment: {
       readonly amount: CodecTypes['pg/numeric@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -454,6 +464,16 @@ export type FieldInputTypes = {
       readonly hours: CodecTypes['pg/numeric@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly projectId: CodecTypes['pg/int4@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly workerId: CodecTypes['pg/int4@1']['input'];
+    };
+    readonly MonthlyPayroll: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly employerSocialInsurance: CodecTypes['pg/numeric@1']['input'];
+      readonly grossPay: CodecTypes['pg/numeric@1']['input'];
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly month: CodecTypes['pg/text@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly workerId: CodecTypes['pg/int4@1']['input'];
     };
@@ -589,6 +609,16 @@ export type StorageColumnTypes = {
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly workerId: CodecTypes['pg/int4@1']['output'];
     };
+    readonly MonthlyPayroll: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly employerSocialInsurance: CodecTypes['pg/numeric@1']['output'];
+      readonly grossPay: CodecTypes['pg/numeric@1']['output'];
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly month: CodecTypes['pg/text@1']['output'];
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly workerId: CodecTypes['pg/int4@1']['output'];
+    };
     readonly Payment: {
       readonly amount: CodecTypes['pg/numeric@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -718,6 +748,16 @@ export type StorageColumnInputTypes = {
       readonly hours: CodecTypes['pg/numeric@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly projectId: CodecTypes['pg/int4@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly workerId: CodecTypes['pg/int4@1']['input'];
+    };
+    readonly MonthlyPayroll: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly employerSocialInsurance: CodecTypes['pg/numeric@1']['input'];
+      readonly grossPay: CodecTypes['pg/numeric@1']['input'];
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly month: CodecTypes['pg/text@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly workerId: CodecTypes['pg/int4@1']['input'];
     };
@@ -866,6 +906,18 @@ export namespace Models {
     worker: public_Worker;
     readonly [RelationKeys]?: 'project' | 'worker';
   };
+  export type public_MonthlyPayroll = {
+    createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    employerSocialInsurance: CodecTypes['pg/numeric@1']['output'];
+    grossPay: CodecTypes['pg/numeric@1']['output'];
+    id: CodecTypes['pg/int4@1']['output'];
+    month: CodecTypes['pg/text@1']['output'];
+    status: CodecTypes['pg/text@1']['output'];
+    updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    workerId: CodecTypes['pg/int4@1']['output'];
+    worker: public_Worker;
+    readonly [RelationKeys]?: 'worker';
+  };
   export type public_Payment = {
     amount: CodecTypes['pg/numeric@1']['output'];
     createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -933,7 +985,8 @@ export namespace Models {
     status: CodecTypes['pg/text@1']['output'];
     updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     labour: public_Labour[];
-    readonly [RelationKeys]?: 'labour';
+    payrolls: public_MonthlyPayroll[];
+    readonly [RelationKeys]?: 'labour' | 'payrolls';
   };
 }
 
@@ -945,6 +998,7 @@ export declare const models: {
     ExtraWork: Models.public_ExtraWork;
     Invoice: Models.public_Invoice;
     Labour: Models.public_Labour;
+    MonthlyPayroll: Models.public_MonthlyPayroll;
     Payment: Models.public_Payment;
     Project: Models.public_Project;
     ProjectPhoto: Models.public_ProjectPhoto;
@@ -1493,6 +1547,83 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly MonthlyPayroll: {
+              columns: {
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                };
+                readonly employerSocialInsurance: {
+                  readonly nativeType: 'numeric';
+                  readonly codecId: 'pg/numeric@1';
+                  readonly nullable: false;
+                };
+                readonly grossPay: {
+                  readonly nativeType: 'numeric';
+                  readonly codecId: 'pg/numeric@1';
+                  readonly nullable: false;
+                };
+                readonly id: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                };
+                readonly month: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly status: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'Draft'>;
+                  };
+                };
+                readonly updatedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                };
+                readonly workerId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [{ readonly columns: readonly ['workerId', 'month'] }];
+              indexes: readonly [
+                {
+                  readonly name: 'MonthlyPayroll_workerId_idx_0b8f3a7c';
+                  readonly prefix: 'MonthlyPayroll_workerId_idx';
+                  readonly columns: readonly ['workerId'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MonthlyPayroll';
+                    readonly columns: readonly ['workerId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'Worker';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
             readonly Payment: {
               columns: {
                 readonly amount: {
@@ -1890,6 +2021,10 @@ type ContractBase = Omit<
     readonly ExtraWork: { readonly namespace: 'public' & NamespaceId; readonly model: 'ExtraWork' };
     readonly Invoice: { readonly namespace: 'public' & NamespaceId; readonly model: 'Invoice' };
     readonly Labour: { readonly namespace: 'public' & NamespaceId; readonly model: 'Labour' };
+    readonly MonthlyPayroll: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'MonthlyPayroll';
+    };
     readonly Payment: { readonly namespace: 'public' & NamespaceId; readonly model: 'Payment' };
     readonly Project: { readonly namespace: 'public' & NamespaceId; readonly model: 'Project' };
     readonly ProjectPhoto: {
@@ -2421,6 +2556,76 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly MonthlyPayroll: {
+            readonly fields: {
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+              readonly employerSocialInsurance: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/numeric@1' };
+              };
+              readonly grossPay: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/numeric@1' };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly month: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+              readonly workerId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+            };
+            readonly relations: {
+              readonly worker: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Worker';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['workerId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'MonthlyPayroll';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly createdAt: { readonly column: 'createdAt' };
+                readonly employerSocialInsurance: { readonly column: 'employerSocialInsurance' };
+                readonly grossPay: { readonly column: 'grossPay' };
+                readonly id: { readonly column: 'id' };
+                readonly month: { readonly column: 'month' };
+                readonly status: { readonly column: 'status' };
+                readonly updatedAt: { readonly column: 'updatedAt' };
+                readonly workerId: { readonly column: 'workerId' };
+              };
+            };
+          };
           readonly Payment: {
             readonly fields: {
               readonly amount: {
@@ -2830,6 +3035,17 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['workerId'];
                 };
               };
+              readonly payrolls: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MonthlyPayroll';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['workerId'];
+                };
+              };
             };
             readonly storage: {
               readonly table: 'Worker';
@@ -2928,6 +3144,15 @@ type ContractBase = Omit<
           readonly onUpdate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
           readonly ref: {
             readonly entry: 'Labour';
+            readonly field: 'updatedAt';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly onUpdate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'MonthlyPayroll';
             readonly field: 'updatedAt';
             readonly namespace: 'public';
           };

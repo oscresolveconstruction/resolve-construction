@@ -120,35 +120,76 @@ export default function Sidebar() {
           </p>
 
           <div className="space-y-1">
-            <Link href="/" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Dashboard
             </Link>
 
-            <Link href="/projects" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/projects"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Projects
             </Link>
 
-            <Link href="/customers" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/customers"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Customers
             </Link>
 
-            <Link href="/workers" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/workers"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Workers
             </Link>
 
-            <Link href="/labour" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/labour"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Daily Labour
             </Link>
 
-            <Link href="/expenses" className={linkClass} onClick={() => setMenuOpen(false)}>
+            {/* NEW MONTHLY PAYROLL */}
+            <Link
+              href="/monthly-payroll"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
+              Monthly Payroll
+            </Link>
+
+            <Link
+              href="/expenses"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               All Expenses & Receipts
             </Link>
 
-            <Link href="/general-expenses" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/general-expenses"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               General Expenses
             </Link>
 
-            <Link href="/company-finances" className={linkClass} onClick={() => setMenuOpen(false)}>
+            <Link
+              href="/company-finances"
+              className={linkClass}
+              onClick={() => setMenuOpen(false)}
+            >
               Company Finances
             </Link>
           </div>
