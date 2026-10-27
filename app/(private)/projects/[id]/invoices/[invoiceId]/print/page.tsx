@@ -34,8 +34,9 @@ export default async function InvoicePrintPage({ params }: PageProps) {
   if (!project || !invoice || invoice.projectId !== projectId) notFound();
 
   const payments = await db.orm.public.Payment.where({ invoiceId: invoiceNumberId }).all();
-  const paid = payments.filter(p => p.currency === invoice.currency)
-    .reduce((total, payment) => total + Number(payment.amount), 0);
+  const matchingPayments = payments.filter(p => p.currency === invoice.currency)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const paid = matchingPayments.reduce((total, payment) => total + Number(payment.amount), 0);
   const due = Math.max(0, Number(invoice.amount) - paid);
   const currency = invoice.currency;
   const money = (number: number) => formatAmount(number, currency);
@@ -53,11 +54,13 @@ export default async function InvoicePrintPage({ params }: PageProps) {
         .invoice-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
         .invoice-items tr { break-inside: avoid; }
         .invoice-summary { break-inside: avoid; }
+        .invoice-payment-row { break-inside: avoid; }
+        @media screen and (max-width: 640px) { .invoice-sheet { overflow-x: auto; } }
       `}</style>
 
       <div className="no-print mx-auto mb-5 flex max-w-[800px] justify-between gap-3 px-4">
         <Link className="rounded-lg bg-white px-4 py-2 text-sm shadow" href={`/projects/${projectId}/invoices/${invoiceNumberId}`}>← Invoice details</Link>
-        <p className="text-xs text-slate-600">Print-ready preview · use browser Print → Save as PDF</p>
+        <p className="text-xs text-slate-600">Preview only · browser Print → Save as PDF (A4; background graphics on)</p>
       </div>
 
       <article className="invoice-sheet mx-auto min-h-[1122px] w-full max-w-[794px] bg-white shadow-lg">
@@ -100,6 +103,19 @@ export default async function InvoicePrintPage({ params }: PageProps) {
               </tr>
             </tbody>
           </table>
+          {matchingPayments.length > 0 && (
+            <div className="mt-10">
+              <h2 className="border-b border-[#f36b21] pb-2 text-xs font-bold uppercase tracking-widest text-[#ec6a2b]">Payments</h2>
+              <div className="mt-3 space-y-2 text-sm">
+                {matchingPayments.map((payment) => (
+                  <div key={payment.id} className="invoice-payment-row flex justify-between gap-4">
+                    <span>Payment received · {displayDate(payment.date)}{payment.reference ? ` · ${payment.reference}` : ""}</span>
+                    <span className="shrink-0">{money(Number(payment.amount))}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="invoice-summary ml-auto mt-9 w-full max-w-[310px] space-y-3 text-sm">
             <div className="flex justify-between"><span>Total</span><strong>{money(Number(invoice.amount))}</strong></div>
             <div className="flex justify-between"><span>Payments received</span><span>{money(paid)}</span></div>
