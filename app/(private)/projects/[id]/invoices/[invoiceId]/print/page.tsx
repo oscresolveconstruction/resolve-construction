@@ -67,6 +67,7 @@ export default async function InvoicePrintPage({ params }: PageProps) {
         <div className="h-3 bg-[#f36b21]" />
         <div className="grid gap-5 px-10 pb-7 pt-8 sm:grid-cols-[1fr_210px]">
           <div>
+            {process.env.INVOICE_LOGO_URL ? <img src={process.env.INVOICE_LOGO_URL} alt="Resolve Construction Ltd logo" className="mb-3 h-auto w-40 object-contain" /> : null}
             <p className="text-[23px] font-bold tracking-tight text-[#ee6423]">Resolve Construction Ltd</p>
             <p className="mt-2 text-sm leading-6">Unit 27, Block 3, Watergardens, Gibraltar</p>
             <p className="text-sm leading-6">Postal code: GX11 1AA</p>
@@ -121,6 +122,19 @@ export default async function InvoicePrintPage({ params }: PageProps) {
             <div className="flex justify-between"><span>Payments received</span><span>{money(paid)}</span></div>
             <div className="flex justify-between border-t-2 border-[#f36b21] pt-3 text-base font-bold"><span>Balance Due</span><span>{money(due)}</span></div>
           </div>
+          <section className="mt-12 border-t border-[#f36b21] pt-5 text-sm">
+            <p className="mb-5 whitespace-pre-line">50% deposit.\n25% on first evaluation.\n25% on completion.</p>
+            {process.env.INVOICE_BANK_ACCOUNT_NAME && process.env.INVOICE_BANK_ACCOUNT_NUMBER && process.env.INVOICE_BANK_SORT_CODE && process.env.INVOICE_BANK_IBAN && process.env.INVOICE_BANK_SWIFT ? (
+              <div className="space-y-1">
+                <h2 className="font-semibold">BANK DETAILS:</h2>
+                <p>A/C name: {process.env.INVOICE_BANK_ACCOUNT_NAME}</p>
+                <p>A/C number: {process.env.INVOICE_BANK_ACCOUNT_NUMBER}</p>
+                <p>Sort code: {process.env.INVOICE_BANK_SORT_CODE}</p>
+                <p>IBAN: {process.env.INVOICE_BANK_IBAN}</p>
+                <p>Swift code: {process.env.INVOICE_BANK_SWIFT}</p>
+              </div>
+            ) : <p className="text-amber-700">Bank details not configured — not ready for customer delivery.</p>}
+          </section>
           <p className="mt-14 border-t border-gray-200 pt-4 text-xs text-gray-500">
             Invoice generated from a recorded project invoice. Verify customer address, itemised works, payment terms and approved bank details before sending.
           </p>
