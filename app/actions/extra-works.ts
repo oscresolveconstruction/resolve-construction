@@ -173,6 +173,10 @@ export async function updateExtraWork(formData: FormData) {
     throw new Error("Extra work not found.");
   }
 
+  if (extraWork.status === "Approved") {
+    throw new Error("Approved extra works cannot be edited. Create a new extra work for changes.");
+  }
+
   await db.orm.public.ExtraWork.where({ id }).update({
     title,
     description: description || null,
@@ -207,6 +211,10 @@ export async function deleteExtraWork(formData: FormData) {
 
   if (!extraWork) {
     throw new Error("Extra work not found.");
+  }
+
+  if (extraWork.status === "Approved") {
+    throw new Error("Approved extra works cannot be deleted.");
   }
 
   await db.orm.public.ExtraWork.where({ id }).delete();
