@@ -199,9 +199,9 @@ export default function Sidebar() {
           </p>
 
           <div className="space-y-1">
-            <span className="block px-4 py-3 text-gray-400">
-              Quotes
-            </span>
+            <Link href="/quotes" className={linkClass} onClick={() => setMenuOpen(false)}>
+              Quotes (Preview)
+            </Link>
 
             <span className="block px-4 py-3 text-gray-400">
               Invoices
