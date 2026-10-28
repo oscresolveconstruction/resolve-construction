@@ -66,14 +66,30 @@ export default async function InvoicePrintPage({ params }: PageProps) {
       <article className="invoice-sheet mx-auto min-h-[1122px] w-full max-w-[794px] bg-white shadow-lg">
         <div className="h-3 bg-[#f36b21]" />
         <div className="grid gap-5 px-10 pb-7 pt-8 sm:grid-cols-[1fr_210px]">
-          <div>
-            {process.env.INVOICE_LOGO_URL ? <img src={process.env.INVOICE_LOGO_URL} alt="Resolve Construction Ltd logo" className="mb-3 h-auto w-40 object-contain" /> : null}
-            <p className="text-[23px] font-bold tracking-tight text-[#ee6423]">Resolve Construction Ltd</p>
+          <div className="flex items-start gap-5">
+            <div className="w-[142px] shrink-0">
+              {process.env.INVOICE_LOGO_URL ? (
+                <img
+                  src={process.env.INVOICE_LOGO_URL}
+                  alt="Resolve Construction Ltd logo"
+                  width="142"
+                  height="100"
+                  className="h-auto w-full object-contain"
+                />
+              ) : (
+                <div className="border border-dashed border-gray-300 p-2 text-xs text-gray-500">
+                  Company logo not configured
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+            <p className="text-base font-bold tracking-tight text-[#333]">Resolve Construction Ltd</p>
             <p className="mt-2 text-sm leading-6">Unit 27, Block 3, Watergardens, Gibraltar</p>
             <p className="text-sm leading-6">Postal code: GX11 1AA</p>
             <p className="text-sm leading-6">+350 54099237</p>
             <p className="text-sm leading-6">www.resolveconstructionltd.com</p>
             <p className="text-sm leading-6">inforesolveconstruction@gmail.com</p>
+            </div>
           </div>
           <div className="space-y-3 sm:text-right">
             <div><h1 className="text-3xl font-black tracking-widest text-[#f36b21]">INVOICE</h1><p className="font-semibold">{invoice.invoiceNumber}</p></div>
