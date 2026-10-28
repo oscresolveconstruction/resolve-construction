@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { calculateQuoteLines, calculateStages } from "../../../lib/quote-calculations";
+import { calculateQuoteLines } from "../../../lib/quote-calculations";
 
 type Client = { id: number; name: string };
 type Project = { id: number; name: string; customerId: number | null };
@@ -27,11 +27,6 @@ export default function QuoteDraftForm({customers, projects}:{customers:Client[]
       return {result,error:null as string|null};
     } catch(e) { return {result:null,error:e instanceof Error?e.message:"Invalid quote"}; }
   },[lines]);
-  const stages = total.result ? calculateStages(total.result.totalMinor,[
-    {label:"Deposit", percentageBasisPoints:5000},
-    {label:"First evaluation",percentageBasisPoints:2500},
-    {label:"Completion",percentageBasisPoints:2500}
-  ]) : [];
   const update=(index:number,key:keyof Line,value:string)=>setLines(prev=>prev.map((l,i)=>i===index?{...l,[key]:value}:l));
   return <div className="mt-6 space-y-5">
     <div className="rounded-xl border bg-white p-6">
@@ -77,8 +72,7 @@ export default function QuoteDraftForm({customers, projects}:{customers:Client[]
       <div className="mt-7"><p className="text-xs font-bold text-orange-600">BILL TO</p><p className="font-semibold">{selectedCustomer.name}</p><p>{title}</p></div>
       <div className="mt-7 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-orange-600 text-white"><tr><th className="p-3 text-left">DESCRIPTION</th><th className="p-3 text-right">RATE</th><th className="p-3 text-right">QTY</th><th className="p-3 text-right">AMOUNT</th></tr></thead><tbody>{total.result.items.map((l,i)=><tr className="border-b" key={i}><td className="whitespace-pre-line p-3">{l.description}</td><td className="p-3 text-right">{money(l.unitPriceMinor,currency)}</td><td className="p-3 text-right">{l.quantity}</td><td className="p-3 text-right">{money(l.amountMinor,currency)}</td></tr>)}</tbody></table></div>
       <p className="mt-6 text-right text-2xl font-bold">Total {money(total.result.totalMinor,currency)}</p>
-      <h3 className="mt-7 font-bold">Suggested payment stages</h3>
-      {stages.map(s=><p className="mt-1 text-sm" key={s.label}>{s.label}: {money(s.amountMinor,currency)}</p>)}
+      <p className="mt-7 text-sm text-gray-600">Invoices will be created manually after quote approval. Each amount will be chosen by an owner.</p>
       <p className="mt-6 text-sm font-semibold text-red-700">NOT SAVED · NOT APPROVED · NOT AN INVOICE</p>
       <button type="button" className="mt-4 rounded-lg border px-4 py-2" onClick={()=>setShowPreview(false)}>Close preview</button>
     </section>}
