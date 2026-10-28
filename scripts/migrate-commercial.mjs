@@ -13,7 +13,12 @@ export async function migrate(pool) {
   const existing = await client.query("SELECT checksum FROM commercial_migration WHERE version='001'");
   if (existing.rows.length && existing.rows[0].checksum !== checksum) throw new Error('Migration checksum mismatch');
   if (!existing.rows.length) {
+   await client.query('SET LOCAL lock_timeout = \'10s\'');
+   await client.query('LOCK TABLE "AppUser", "Customer", "Project", "Invoice", "Payment", "ExtraWork" IN SHARE ROW EXCLUSIVE MODE');
+   const counts = async () => (await client.query('SELECT (SELECT count(*) FROM "Invoice") AS invoices, (SELECT count(*) FROM "Payment") AS payments, (SELECT count(*) FROM "ExtraWork") AS extras, (SELECT count(*) FROM "Project") AS projects, (SELECT count(*) FROM "Customer") AS customers')).rows[0];
+   const before = await counts();
    await client.query(sql);
+   if (JSON.stringify(before) !== JSON.stringify(await counts())) throw new Error('Existing row counts changed; rolling back migration');
    await client.query("INSERT INTO commercial_migration(version,checksum) VALUES ('001',$1)",[checksum]);
   }
   await client.query('COMMIT');

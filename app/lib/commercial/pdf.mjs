@@ -38,6 +38,7 @@ export function renderDocumentPdf(data) {
   }
   function columns() {ensure(28);const y=doc.y;doc.rect(44,y,width,24).fill('#ed510c');doc.fillColor('white').fontSize(9);[['DESCRIPTION',50,260],['RATE',315,85],['QTY',405,48],['AMOUNT',455,90]].forEach(([t,x,w])=>doc.text(t,x,y+6,{width:w,align:x===50?'left':'right',lineBreak:false}));doc.y=y+32;}
   header();block('BILL TO',[data.customer.name,data.customer.contactName,data.customer.address,data.customer.email].filter(Boolean).join('\n'));
+  if(data.validUntil)block('VALID UNTIL',data.validUntil);
   if(data.title)block('WORK',data.title);
   if(data.source)block('APPROVED SOURCE',data.source);
   columns();
@@ -66,7 +67,7 @@ export function renderDocumentPdf(data) {
   block('PAYMENT TERMS',data.terms);block('NOTES',data.notes);block('BANK DETAILS',data.issuer.bank);
   if(data.status==='Draft')block('DRAFT','Not issued or approved.');
   const range=doc.bufferedPageRange();
-  for(let i=0;i<range.count;i++){doc.switchToPage(i);doc.fontSize(8).fillColor('#666').text(`${data.number}  |  ${i+1} / ${range.count}`,44,800,{width,align:'right',lineBreak:false});}
+  for(let i=0;i<range.count;i++){doc.switchToPage(i);doc.page.margins.bottom=0;doc.fontSize(8).fillColor('#666').text(`${data.number}  |  ${i+1} / ${range.count}`,44,800,{width,align:'right',lineBreak:false});}
   doc.end();
  });
 }

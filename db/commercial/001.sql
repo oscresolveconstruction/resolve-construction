@@ -91,3 +91,16 @@ BEGIN
 END $$;
 CREATE TRIGGER validate_commercial_payment BEFORE INSERT OR UPDATE ON "Payment"
 FOR EACH ROW EXECUTE FUNCTION validate_commercial_payment();
+-- Supabase may grant new public tables to API roles by default. Commercial
+-- records contain customer and issuer snapshots and are server-only.
+ALTER TABLE commercial_document ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commercial_invoice ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commercial_audit ENABLE ROW LEVEL SECURITY;
+DO $$ DECLARE role_name text; BEGIN
+ FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
+   EXECUTE format('REVOKE ALL ON commercial_document, commercial_invoice, commercial_audit FROM %I',role_name);
+   EXECUTE format('REVOKE ALL ON SEQUENCE commercial_quote_number, commercial_extra_number, commercial_invoice_number FROM %I',role_name);
+  END IF;
+ END LOOP;
+END $$;

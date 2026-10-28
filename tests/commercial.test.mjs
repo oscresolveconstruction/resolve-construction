@@ -22,13 +22,13 @@ before(async()=>{
  pool=new Pool({host:'127.0.0.1',port:55439,user:'postgres',password:'test-only',database:'postgres',max:12});
  }
  await pool.query(`
- CREATE TABLE "AppUser" (id serial PRIMARY KEY,name text NOT NULL,"isActive" boolean NOT NULL);
- CREATE TABLE "Customer" (id serial PRIMARY KEY,name text,"contactName" text,address text,email text,phone text);
- CREATE TABLE "Project" (id serial PRIMARY KEY,name text,client text,"customerId" integer REFERENCES "Customer",currency text,"contractValue" numeric DEFAULT 0);
+ CREATE TABLE "AppUser" (id serial PRIMARY KEY,name text NOT NULL,"isActive" boolean NOT NULL,email text,"passwordHash" text,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
+ CREATE TABLE "Customer" (id serial PRIMARY KEY,name text,"contactName" text,address text,email text,phone text,notes text,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
+ CREATE TABLE "Project" (id serial PRIMARY KEY,name text,client text,"customerId" integer REFERENCES "Customer",currency text,"contractValue" numeric DEFAULT 0,description text,"startDate" timestamptz,status text DEFAULT 'Planning',"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
  CREATE TABLE "Invoice" (id serial PRIMARY KEY,"projectId" integer REFERENCES "Project","invoiceNumber" text,"issueDate" timestamptz,"dueDate" timestamptz,amount numeric,currency text,status text,description text,"createdAt" timestamptz,"updatedAt" timestamptz);
  CREATE TABLE "Payment" (id serial PRIMARY KEY,"projectId" integer REFERENCES "Project","invoiceId" integer REFERENCES "Invoice",amount numeric,currency text,date timestamptz,reference text,"updatedAt" timestamptz);
  CREATE TABLE "ExtraWork" (id serial PRIMARY KEY,"projectId" integer REFERENCES "Project",date timestamptz,title text,description text,amount numeric,currency text,status text,"createdAt" timestamptz,"updatedAt" timestamptz);
- INSERT INTO "AppUser" VALUES (1,'Test owner',true),(2,'Disabled',false);
+ INSERT INTO "AppUser"(id,name,"isActive") VALUES (1,'Test owner',true),(2,'Disabled',false);
  INSERT INTO "Customer"(id,name,address) VALUES(1,'Test customer','Original address'),(2,'Other customer','Other address');
  INSERT INTO "Project"(id,name,client,"customerId",currency) VALUES (1,'Test GBP','Test customer',1,'GBP'),(2,'Test EUR','Test customer',1,'EUR'),(3,'Other','Other customer',2,'GBP');
  INSERT INTO "Invoice"("projectId","invoiceNumber","issueDate",amount,currency,status) VALUES(1,'LEGACY-1',now(),12,'GBP','Draft');
