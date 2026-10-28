@@ -1,6 +1,7 @@
 import { db } from "../../../../../../src/prisma/db";
 import DeleteInvoiceButton from "../../../../../components/DeleteInvoiceButton";
-import { notFound } from "next/navigation";
+import { getPayrollPool } from "@/app/lib/payroll-db";
+import { notFound, redirect } from "next/navigation";
 
 type InvoiceDetailPageProps = {
   params: Promise<{
@@ -32,6 +33,9 @@ export default async function InvoiceDetailPage({
   if (!invoice || invoice.projectId !== projectId) {
     notFound();
   }
+
+  const linked = await getPayrollPool().query('SELECT invoice_id FROM commercial_invoice WHERE invoice_id=$1', [invoiceIdNumber]);
+  if (linked.rowCount) redirect(`/invoices/${invoiceIdNumber}`);
 
   const payments = await db.orm.public.Payment
     .where({

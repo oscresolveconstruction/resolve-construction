@@ -1,5 +1,6 @@
 import { db } from "../../../../../../../src/prisma/db";
-import { notFound } from "next/navigation";
+import { getPayrollPool } from "@/app/lib/payroll-db";
+import { notFound, redirect } from "next/navigation";
 import { updateInvoice } from "../../../../../../actions/invoices";
 
 type EditInvoicePageProps = {
@@ -24,6 +25,9 @@ export default async function EditInvoicePage({
   if (!invoice || invoice.projectId !== projectId) {
     notFound();
   }
+
+  const linked = await getPayrollPool().query('SELECT invoice_id FROM commercial_invoice WHERE invoice_id=$1', [invoiceIdNumber]);
+  if (linked.rowCount) redirect(`/invoices/${invoiceIdNumber}`);
 
   const formatDateForInput = (date: string | null) => {
     if (!date) return "";
