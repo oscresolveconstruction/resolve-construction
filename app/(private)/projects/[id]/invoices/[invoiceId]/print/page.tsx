@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PrintInvoiceButton from "./PrintInvoiceButton";
 import { notFound } from "next/navigation";
 import { db } from "../../../../../../../src/prisma/db";
 
@@ -60,7 +61,7 @@ export default async function InvoicePrintPage({ params }: PageProps) {
 
       <div className="no-print mx-auto mb-5 flex max-w-[800px] justify-between gap-3 px-4">
         <Link className="rounded-lg bg-white px-4 py-2 text-sm shadow" href={`/projects/${projectId}/invoices/${invoiceNumberId}`}>← Invoice details</Link>
-        <p className="text-xs text-slate-600">Preview only · browser Print → Save as PDF (A4; background graphics on)</p>
+        <PrintInvoiceButton />
       </div>
 
       <article className="invoice-sheet mx-auto min-h-[1122px] w-full max-w-[794px] bg-white shadow-lg">
