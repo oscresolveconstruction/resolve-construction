@@ -158,38 +158,9 @@ function parseInvoice(formData: FormData) {
   };
 }
 
-async function validateProject(projectId: number) {
-  const project = await db.orm.public.Project.first({
-    id: projectId,
-  });
-
-  if (!project) {
-    throw new Error("Project not found.");
-  }
-}
-
-export async function createInvoice(
-  formData: FormData
-) {
-  // Check authorization before creating an invoice.
+export async function createInvoice() {
   await requireOwner();
-
-  const data = parseInvoice(formData);
-
-  await validateProject(data.projectId);
-
-  await db.orm.public.Invoice.create({
-    projectId: data.projectId,
-    invoiceNumber: data.invoiceNumber,
-    issueDate: data.issueDate,
-    dueDate: data.dueDate,
-    amount: data.amount,
-    currency: data.currency,
-    status: data.status,
-    description: data.description,
-  });
-
-  redirect(`/projects/${data.projectId}/invoices`);
+  redirect("/quotes");
 }
 
 export async function updateInvoice(

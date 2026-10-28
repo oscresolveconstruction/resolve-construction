@@ -147,6 +147,12 @@ export default async function InvoiceDetailPage({
 </div>
         </div>
 
+        <div className="mt-5">
+          <a href={`/projects/${projectId}/invoices/${invoiceIdNumber}/print`} className="inline-flex rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hover:bg-orange-700">
+            Preview / Print invoice
+          </a>
+        </div>
+
         {/* Financial Summary */}
         <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
 
