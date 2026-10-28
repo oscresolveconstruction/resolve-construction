@@ -95,7 +95,7 @@ export default async function NewProject() {
                 </select>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  Can't find the customer?{" "}
+                  Can&apos;t find the customer?{" "}
                   <Link
                     href="/customers/new"
                     className="font-semibold text-orange-600 hover:underline"

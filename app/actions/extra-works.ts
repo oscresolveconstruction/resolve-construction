@@ -70,6 +70,8 @@ function validateStatus(value: string): string {
     "Rejected",
   ];
 
+  if (value === "Approved") throw new Error("Record approval and evidence from Quotes & Extra Works.");
+
   if (!allowedStatuses.includes(value)) {
     throw new Error("Invalid extra work status.");
   }
@@ -173,6 +175,10 @@ export async function updateExtraWork(formData: FormData) {
     throw new Error("Extra work not found.");
   }
 
+  if (extraWork.status === "Approved") {
+    throw new Error("Approved extra works cannot be edited. Create a new extra work for changes.");
+  }
+
   await db.orm.public.ExtraWork.where({ id }).update({
     title,
     description: description || null,
@@ -207,6 +213,10 @@ export async function deleteExtraWork(formData: FormData) {
 
   if (!extraWork) {
     throw new Error("Extra work not found.");
+  }
+
+  if (extraWork.status === "Approved") {
+    throw new Error("Approved extra works cannot be deleted.");
   }
 
   await db.orm.public.ExtraWork.where({ id }).delete();

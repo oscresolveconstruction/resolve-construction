@@ -46,3 +46,6 @@ dist/
 /storage/receipts/
 /private-uploads/
 *.bak
+
+/playwright-report/
+/test-results/

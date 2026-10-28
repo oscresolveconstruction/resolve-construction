@@ -40,7 +40,7 @@ export default function NewCustomerPage() {
             </h2>
 
             <p className="mt-1 text-sm text-gray-500">
-              Enter the customer's main details.
+              Enter the customer&apos;s main details.
             </p>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">

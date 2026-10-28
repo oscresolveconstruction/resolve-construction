@@ -3,18 +3,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
 
   const [loggingOut, setLoggingOut] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const menuOpen = openPath === pathname;
+  const setMenuOpen = (open: boolean) => setOpenPath(open ? pathname : null);
 
   const linkClass =
     "block w-full rounded-lg px-4 py-3 text-left text-gray-800 transition-colors hover:bg-orange-50 hover:text-orange-600";
@@ -195,17 +193,16 @@ export default function Sidebar() {
           </div>
 
           <p className="mb-3 mt-8 px-4 text-xs font-semibold tracking-wider text-gray-400">
-            COMING SOON
+            DOCUMENTS
           </p>
 
           <div className="space-y-1">
-            <span className="block px-4 py-3 text-gray-400">
-              Quotes
-            </span>
+            <Link href="/invoices" className={linkClass}>Invoices</Link>
+          <Link href="/quotes" className={linkClass} onClick={() => setMenuOpen(false)}>
+              Quotes & Extra Works
+            </Link>
 
-            <span className="block px-4 py-3 text-gray-400">
-              Invoices
-            </span>
+
           </div>
         </nav>
 
