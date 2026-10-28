@@ -6,8 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { Pool } from 'pg';
+import { createSupportingTables } from './schema-fixture.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
-import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject } from '../app/lib/commercial/service.mjs';
+import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling } from '../app/lib/commercial/service.mjs';
 let pg,pool;
 const issuer={name:'Test issuer',bank:''};
 const today=new Date().toISOString().slice(0,10);
@@ -22,7 +23,7 @@ before(async()=>{
  pool=new Pool({host:'127.0.0.1',port:55439,user:'postgres',password:'test-only',database:'postgres',max:12});
  }
  await pool.query(`
- CREATE TABLE "AppUser" (id serial PRIMARY KEY,name text NOT NULL,"isActive" boolean NOT NULL,email text,"passwordHash" text,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
+ CREATE TABLE "AppUser" (id serial PRIMARY KEY,name text NOT NULL,"isActive" boolean NOT NULL,email text DEFAULT 'test@example.invalid',"passwordHash" text DEFAULT 'unused-test-hash',"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
  CREATE TABLE "Customer" (id serial PRIMARY KEY,name text,"contactName" text,address text,email text,phone text,notes text,"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
  CREATE TABLE "Project" (id serial PRIMARY KEY,name text,client text,"customerId" integer REFERENCES "Customer",currency text,"contractValue" numeric DEFAULT 0,description text,"startDate" timestamptz,status text DEFAULT 'Planning',"createdAt" timestamptz DEFAULT now(),"updatedAt" timestamptz DEFAULT now());
  CREATE TABLE "Invoice" (id serial PRIMARY KEY,"projectId" integer REFERENCES "Project","invoiceNumber" text,"issueDate" timestamptz,"dueDate" timestamptz,amount numeric,currency text,status text,description text,"createdAt" timestamptz,"updatedAt" timestamptz);
@@ -34,6 +35,7 @@ before(async()=>{
  INSERT INTO "Invoice"("projectId","invoiceNumber","issueDate",amount,currency,status) VALUES(1,'LEGACY-1',now(),12,'GBP','Draft');
  INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,1,2,'GBP',now());
  `);
+ await createSupportingTables(pool);
  await migrate(pool);await migrate(pool);
 });
 after(async()=>{await pool?.end();await pg?.stop();});
@@ -103,4 +105,23 @@ test('revision keeps original immutable content, optional project can be linked'
  const next=await reviseDocument(pool,1,id);assert.notEqual(id,next);
  assert.equal((await pool.query('SELECT status FROM commercial_document WHERE id=$1',[id])).rows[0].status,'Rejected');
  await linkProject(pool,1,next,1);await assert.rejects(linkProject(pool,1,next,3),/match/);
+});
+
+test('historical approved work cannot be billed until reconciled, then only the remainder',async()=>{
+ const e=(await pool.query(`INSERT INTO "ExtraWork"("projectId",date,title,amount,currency,status) VALUES(1,now(),'Historical test',100,'GBP','Approved') RETURNING id`)).rows[0];
+ const input={extraId:e.id,approvedBy:'Original customer',approvedAt:today,evidence:'Original acceptance'};
+ const id=await importLegacyExtra(pool,1,input,issuer);
+ assert.equal(await importLegacyExtra(pool,1,input,issuer),id);
+ await assert.rejects(createManualInvoice(pool,1,invoice(id)),/approved/);
+ await reviewHistoricalBilling(pool,1,{id,amount:'70',evidence:'Prior external invoice test reference'});
+ await assert.rejects(createManualInvoice(pool,1,invoice(id,'31')),/exceeds/);
+ await createManualInvoice(pool,1,invoice(id,'30'));
+ assert.equal((await pool.query('SELECT amount FROM "ExtraWork" WHERE id=$1',[e.id])).rows[0].amount,'100');
+ await assert.rejects(reviewHistoricalBilling(pool,1,{id,amount:'0',evidence:'Reset'}),/Invalid/);
+});
+test('expired estimates cannot be approved and public API roles cannot read snapshots',async()=>{
+ const id=await saveDocument(pool,1,draft({issueDate:'2020-01-01',validUntil:'2020-01-02'}),issuer);
+ await assert.rejects(transitionDocument(pool,1,{id,revision:1,status:'Sent'}),/expired/);
+ const rows=(await pool.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('commercial_document','commercial_invoice','commercial_audit')")).rows;
+ assert.equal(rows.length,3);assert.ok(rows.every(r=>r.relrowsecurity));
 });

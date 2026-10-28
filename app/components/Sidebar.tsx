@@ -193,7 +193,7 @@ export default function Sidebar() {
           </div>
 
           <p className="mb-3 mt-8 px-4 text-xs font-semibold tracking-wider text-gray-400">
-            COMING SOON
+            DOCUMENTS
           </p>
 
           <div className="space-y-1">
@@ -202,9 +202,7 @@ export default function Sidebar() {
               Quotes & Extra Works
             </Link>
 
-            <span className="block px-4 py-3 text-gray-400">
-              Invoices
-            </span>
+
           </div>
         </nav>
 

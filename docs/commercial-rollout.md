@@ -27,3 +27,9 @@ PDFs use an embedded Unicode font, repeated headings and page numbers. Customer/
 5. Wait for terminal SUCCESS, then verify login, unauthenticated protection and authenticated read-only pages. Do not create invoices as a production smoke test.
 
 Rollback: restore the previous application deployment, leaving the additive tables and issued financial records in place. Do not drop the migration or undo issued invoices. Triggers intentionally protect source-linked invoices from legacy mutation after rollback.
+
+## Verified on integration branch
+
+- First CI run: PostgreSQL 17 migration, authorization, persistence, revision checks, explicit approval, eight concurrent billing attempts, retry deduplication, extra-work totals, payment allocation and legacy mutation guards all passed; lint, TypeScript and production build passed.
+- Local PDF fixture: 36 multiline items, accented text, totals/payment/balance, manual terms and footer rendered across three A4 pages. Fixed footer-induced blank pages and inspected the final page.
+- Final browser and expanded historical-reconciliation tests are release gates, not assumed from unit tests.
