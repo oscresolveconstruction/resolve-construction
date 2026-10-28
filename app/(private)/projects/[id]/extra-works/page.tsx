@@ -350,7 +350,7 @@ export default async function ExtraWorksPage({ params }: PageProps) {
                   </strong>
                 </div>
 
-                <form action={updateExtraWork}>
+                {work.status === "Approved" ? <p style={{color:"#166534",fontSize:14,fontWeight:600}}>Approved — locked from editing to protect the agreed amount.</p> : <form action={updateExtraWork}>
                   <input
                     type="hidden"
                     name="id"
@@ -485,7 +485,8 @@ export default async function ExtraWorksPage({ params }: PageProps) {
                   >
                     Delete Extra Work
                   </button>
-                </form>
+                </form>}
+                <Link href={`/projects/${projectId}/extra-works/${work.id}/print`} style={{display:"inline-block",marginTop:16,color:"#ea580c",fontWeight:700,textDecoration:"underline"}}>Preview / Print Extra Work →</Link>
               </div>
             ))}
           </div>
