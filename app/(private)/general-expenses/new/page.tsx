@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto';
+import PendingSubmit from '../../../components/PendingSubmit';
 
 import Link from "next/link";
 import { createExpense } from "../../../actions/expenses";
@@ -28,7 +30,7 @@ export default function NewGeneralExpensePage() {
         action={createExpense}
         encType="multipart/form-data"
         className="space-y-6 rounded-2xl bg-white p-8 shadow-sm"
-      >
+      ><input type="hidden" name="requestId" value={randomUUID()}/>
         {/* Empty projectId means General Expense */}
         <input type="hidden" name="projectId" value="" />
 
@@ -209,12 +211,12 @@ export default function NewGeneralExpensePage() {
             Cancel
           </Link>
 
-          <button
+          <PendingSubmit
             type="submit"
             className="rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600"
           >
             Save General Expense
-          </button>
+          </PendingSubmit>
         </div>
       </form>
     </main>

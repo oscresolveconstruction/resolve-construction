@@ -1,3 +1,4 @@
+import {companyCostGBP,sumMoney,differenceMoney} from '../../lib/finance/calculations.mjs';
 
 import Link from "next/link";
 import { db } from "../../../src/prisma/db";
@@ -17,12 +18,13 @@ export default async function CompanyFinancesPage({
 }: PageProps) {
   const { year } = await searchParams;
 
-  const [projects, expenses, labour, payments] =
+  const [projects, expenses, labour, payments, extraWorks] =
     await Promise.all([
       db.orm.public.Project.all(),
       db.orm.public.Expense.all(),
       db.orm.public.Labour.all(),
       db.orm.public.Payment.all(),
+      db.orm.public.ExtraWork.all(),
     ]);
 
   const currentYear = new Date().getUTCFullYear();
@@ -55,40 +57,10 @@ export default async function CompanyFinancesPage({
   function expenseGBP(
     expense: (typeof expenses)[number]
   ): number | null {
-    const amount = Number(expense.amount);
-
-    if (expense.currency === "GBP") return amount;
-
-    if (expense.projectId === null) {
-      const rate = Number(expense.exchangeRate ?? 0);
-      return rate > 0 ? amount * rate : null;
-    }
-
-    const project = projectMap.get(expense.projectId);
-
-    if (project?.currency === "GBP") {
-      const rate = Number(expense.exchangeRate ?? 0);
-      return rate > 0 ? amount * rate : null;
-    }
-
-    return null;
+    return companyCostGBP(expense,expense.projectId===null?'GBP':projectMap.get(expense.projectId)?.currency);
   }
-
-  function labourGBP(
-    entry: (typeof labour)[number]
-  ): number | null {
-    const amount = Number(entry.amount);
-
-    if (entry.currency === "GBP") return amount;
-
-    const project = projectMap.get(entry.projectId);
-
-    if (project?.currency === "GBP") {
-      const rate = Number(entry.exchangeRate ?? 0);
-      return rate > 0 ? amount * rate : null;
-    }
-
-    return null;
+  function labourGBP(entry:(typeof labour)[number]):number|null {
+    return companyCostGBP(entry,projectMap.get(entry.projectId)?.currency);
   }
 
   const projectExpenses = yearExpenses.filter(
@@ -110,7 +82,7 @@ export default async function CompanyFinancesPage({
         if (value === null) {
           result.missing += 1;
         } else {
-          result.total += value;
+          result.total = sumMoney([result.total,value]);
         }
 
         return result;
@@ -150,13 +122,10 @@ export default async function CompanyFinancesPage({
         : null
   );
 
-  const annualCosts =
-    projectCost.total +
-    generalCost.total +
-    labourCost.total;
+  const annualCosts=sumMoney([projectCost.total,generalCost.total,labourCost.total]);
 
   const annualCashBalance =
-    received.total - annualCosts;
+    differenceMoney(received.total,annualCosts);
 
   // Lifetime estimated profit requires all costs, not only
   // costs from the selected year.
@@ -172,11 +141,9 @@ export default async function CompanyFinancesPage({
 
   const allLabour = sumConverted(labour, labourGBP);
 
-  const estimatedProfit =
-    contractValue.total -
-    allProjectExpenses.total -
-    allGeneralExpenses.total -
-    allLabour.total;
+  const approvedExtras=sumConverted(extraWorks.filter(e=>e.status==='Approved'),e=>e.currency==='GBP'?Number(e.amount):null);
+  const totalProjectValue=sumMoney([contractValue.total,approvedExtras.total]);
+  const estimatedProfit=differenceMoney(totalProjectValue,sumMoney([allProjectExpenses.total,allGeneralExpenses.total,allLabour.total]));
 
   const missingAnnual =
     projectCost.missing +
@@ -185,7 +152,7 @@ export default async function CompanyFinancesPage({
     received.missing;
 
   const missingLifetime =
-    contractValue.missing +
+    contractValue.missing + approvedExtras.missing +
     allProjectExpenses.missing +
     allGeneralExpenses.missing +
     allLabour.missing;
@@ -267,7 +234,7 @@ export default async function CompanyFinancesPage({
           timeZone: "UTC",
         }),
         received: monthReceived.total,
-        costs: monthExpenses.total + monthLabour.total,
+        costs: sumMoney([monthExpenses.total,monthLabour.total]),
       };
     }
   );
@@ -487,10 +454,10 @@ export default async function CompanyFinancesPage({
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg bg-gray-50 p-5">
             <p className="text-sm text-gray-500">
-              Total Contract Value
+              Total Project Value (contracts + approved extras)
             </p>
             <p className="mt-2 text-2xl font-bold text-gray-900">
-              {money(contractValue.total)}
+              {money(totalProjectValue)}
             </p>
           </div>
 

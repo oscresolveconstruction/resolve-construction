@@ -11,7 +11,7 @@ export async function createSupportingTables(pool){
    if(!field)continue;
    const [,key,type,nullable]=field;
    const sqlType={Int:'integer',String:'text',Boolean:'boolean',Decimal:'numeric',TimestamptzString:'timestamptz','temporal.updatedAtString()':'timestamptz'}[type];
-   columns.push(`"${key}" ${key==='id'?'serial PRIMARY KEY':sqlType}${nullable||key==='id'?'':' NOT NULL'}`);
+   columns.push(`"${key}" ${key==='id'?'serial PRIMARY KEY':sqlType}${nullable||key==='id'?'':' NOT NULL'}${sqlType==='timestamptz'&&!nullable?' DEFAULT now()':''}`);
   }
   await pool.query(`CREATE TABLE "${name}" (${columns.join(',')})`);
  }

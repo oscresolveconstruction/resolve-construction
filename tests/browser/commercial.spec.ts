@@ -135,3 +135,38 @@ test('cancel mistaken invoice, retain PDF and manually issue replacement',async(
  const replacementId=Number(page.url().split('/').at(-1));await pool.query('INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,$1,1,\'GBP\',now())',[replacementId]);await page.reload();await expect(page.getByRole('button',{name:'Cancel invoice',exact:true})).toBeDisabled();
  await page.goto('/invoices');await expect(page.locator('tr').filter({has:page.locator(`a[href="/invoices/${invoiceId}"]`)})).toContainText('Cancelled');
 });
+
+test('financial reconciliation across project, costs, receipts, invoices and payroll without double counting',async({page,context},testInfo)=>{
+ test.setTimeout(90000);
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ const projectId=testInfo.project.name==='chromium'?10001:10002;
+ const workerId=projectId;
+ const card=(label:string)=>page.getByText(label,{exact:true}).locator('..');
+ const numeric=(s:string)=>Number(s.replace(/[^\d.-]/g,''));
+ await page.goto('/company-finances');
+ const before=numeric(await card('Total Project Value (contracts + approved extras)').locator('p').nth(1).innerText());
+ await pool.query('INSERT INTO "Project"(id,name,client,"customerId",currency,"contractValue",status) VALUES($1,$2,\'Test customer\',1,\'GBP\',1000,\'Active\')',[projectId,`Audit project ${projectId}`]);
+ await pool.query('INSERT INTO "Worker"(id,name,"hourlyRate",currency,status,"createdAt","updatedAt") VALUES($1,$2,25,\'GBP\',\'Active\',now(),now())',[workerId,`Audit worker ${workerId}`]);
+ await pool.query('INSERT INTO "ExtraWork"("projectId",date,title,amount,currency,status) VALUES($1,now(),\'Audit approved extra\',100,\'GBP\',\'Approved\'),($1,now(),\'Pending extra\',50,\'GBP\',\'Pending\')',[projectId]);
+ const active=(await pool.query('INSERT INTO "Invoice"("projectId","invoiceNumber","issueDate",amount,currency,status,description) VALUES($1,$2,now(),500,\'GBP\',\'Issued\',\'Audit invoice\') RETURNING id',[projectId,`AUDIT-${projectId}`])).rows[0].id;
+ // Exercise real forms and the new idempotent write path.
+ await page.goto(`/projects/${projectId}/expenses/new`);await page.locator('input[name=date]').fill(today);await page.locator('input[name=supplier]').fill('Audit supplier');await page.locator('select[name=category]').selectOption('Materials');await page.locator('input[name=amount]').fill('100');await page.getByRole('button',{name:'Save Expense & Receipt'}).click();await expect(page).toHaveURL(`/projects/${projectId}/expenses`);
+ await page.goto('/general-expenses/new');await page.locator('input[name=supplier]').fill(`Audit overhead ${projectId}`);await page.locator('select[name=category]').selectOption('Office Rent');await page.locator('input[name=amount]').fill('25');await page.getByRole('button',{name:'Save General Expense'}).click();await expect(page).toHaveURL('/general-expenses');
+ await page.goto(`/projects/${projectId}/payments/new`);await page.locator('input[name=amount]').fill('300');await page.locator('input[name=reference]').fill(`Audit receipt ${projectId}`);await page.getByRole('button',{name:'Save Payment'}).click();await expect(page).toHaveURL(`/projects/${projectId}/payments`);
+ await expect(card('Payments Received')).toContainText('£300.00');await expect(card('Total Project Value')).toContainText('£1,100.00');
+ await page.goto(`/invoices/${active}`);const payment=(await pool.query('SELECT id FROM "Payment" WHERE "projectId"=$1 AND reference=$2',[projectId,`Audit receipt ${projectId}`])).rows[0];await page.locator('select[name=paymentId]').selectOption(String(payment.id));await page.getByRole('button',{name:'Allocate existing payment'}).click();
+ await page.goto('/labour');await page.locator('input[name=date]').fill(today);const selects=page.locator('select:visible');await selects.nth(0).selectOption(String(workerId));await selects.nth(1).selectOption(String(projectId));await page.locator('input[type=number]:visible').first().fill('8');await page.getByRole('button',{name:'Save Day'}).click();await expect.poll(async()=>Number((await pool.query('SELECT sum(amount) AS n FROM "Labour" WHERE "workerId"=$1',[workerId])).rows[0].n)).toBe(200);
+ await page.goto('/monthly-payroll/new');await page.locator('select[name=workerId]').selectOption(String(workerId));await page.locator('input[name=month]').fill(today.slice(0,7));await page.locator('input[name=grossPay]').fill('300.01');await page.locator('input[name=employerSocialInsurance]').fill('0');await page.getByRole('button',{name:'Save Payroll'}).click();await expect(page).toHaveURL('/monthly-payroll');
+ const payrollRow=page.locator('tr').filter({hasText:`Audit worker ${workerId}`});await payrollRow.getByRole('checkbox').check();await payrollRow.getByRole('button',{name:'Close Payroll'}).click();await expect(payrollRow.getByRole('button',{name:'Reopen Payroll'})).toBeVisible();
+ const cost=async()=>Number((await pool.query('SELECT sum(amount) AS n FROM "Labour" WHERE "workerId"=$1',[workerId])).rows[0].n);
+ expect(await cost()).toBe(300.01);
+ await payrollRow.getByRole('checkbox').check();await payrollRow.getByRole('button',{name:'Reopen Payroll'}).click();await expect(payrollRow.getByRole('button',{name:'Close Payroll'})).toBeVisible();expect(await cost()).toBe(200);
+ await payrollRow.getByRole('checkbox').check();await payrollRow.getByRole('button',{name:'Close Payroll'}).click();await expect(payrollRow.getByRole('button',{name:'Reopen Payroll'})).toBeVisible();expect(await cost()).toBe(300.01);
+ await page.goto(`/projects/${projectId}`);await expect(card('Total Project Value')).toContainText('£1,100.00');await expect(card('Total Costs')).toContainText('£400.01');await expect(card('Payments Received')).toContainText('£300.00');await expect(card('Estimated Profit')).toContainText('£699.99');await expect(card('Outstanding')).toContainText('£800.00');
+ await page.goto(`/projects/${projectId}/invoices`);await expect(card('Remaining to Invoice')).toContainText('600.00');
+ await page.goto('/company-finances');expect(numeric(await card('Total Project Value (contracts + approved extras)').locator('p').nth(1).innerText())-before).toBe(1100);
+ const report=await (await page.request.get('/api/financial-audit')).json();
+ const summary=report.projects.find((p:{projectId:number})=>p.projectId===projectId);expect(summary).toMatchObject({cost:400.01,totalValue:1100,received:300,invoiced:500,outstanding:800,profit:699.99});
+ expect(report.findings.filter((f:{kind:string;code:string;ids:number[]})=>f.kind==='payroll'&&f.code==='closed_payroll_allocation_mismatch'&&f.ids.includes(projectId))).toHaveLength(0);
+});

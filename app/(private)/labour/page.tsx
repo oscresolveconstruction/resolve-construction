@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import Link from "next/link";
 import { db } from "@/src/prisma/db";
 import DailyLabourForm from "./DailyLabourForm";
@@ -59,7 +60,7 @@ export default async function LabourPage() {
         </p>
       </div>
 
-      <DailyLabourForm
+      <DailyLabourForm requestId={randomUUID()}
         workers={activeWorkers}
         projects={projectOptions}
       />

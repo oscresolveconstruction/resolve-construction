@@ -21,7 +21,7 @@ export async function migrate(pool) {
    if (JSON.stringify(before) !== JSON.stringify(await counts())) throw new Error('Existing row counts changed; rolling back migration');
    await client.query("INSERT INTO commercial_migration(version,checksum) VALUES ('001',$1)",[checksum]);
   }
-  for(const version of ['002','003']) {
+  for(const version of ['002','003','004']) {
    const sql=await readFile(new URL(`../db/commercial/${version}.sql`,import.meta.url),'utf8');
    const checksum=createHash('sha256').update(sql).digest('hex');
    const previous=await client.query('SELECT checksum FROM commercial_migration WHERE version=$1',[version]);

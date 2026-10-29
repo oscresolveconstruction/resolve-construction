@@ -1,3 +1,4 @@
+import {convertedMoney,sumMoney} from '../../../../lib/finance/calculations.mjs';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/src/prisma/db";
@@ -71,19 +72,7 @@ export default async function ProjectLabourPage({
   function getProjectLabourCost(
     entry: (typeof labourEntries)[number]
   ) {
-    const amount = Number(entry.amount);
-
-    // Same currency
-    if (entry.currency === currentProject.currency) {
-      return amount;
-    }
-
-    // Different currency
-    const exchangeRate = entry.exchangeRate
-      ? Number(entry.exchangeRate)
-      : 0;
-
-    return amount * exchangeRate;
+    return convertedMoney(entry.amount,entry.currency,currentProject.currency,entry.exchangeRate) ?? 0;
   }
 
   // Total hours
@@ -95,12 +84,7 @@ export default async function ProjectLabourPage({
   );
 
   // Total labour cost
-  const totalLabourCost = labourEntries.reduce(
-    (total, entry) => {
-      return total + getProjectLabourCost(entry);
-    },
-    0
-  );
+  const totalLabourCost=sumMoney(labourEntries.map(getProjectLabourCost));
 
   const projectSymbol = currencySymbol(
     currentProject.currency

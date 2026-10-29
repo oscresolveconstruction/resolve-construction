@@ -8,6 +8,9 @@ import {
   removeReceipt,
 } from "../lib/receipt-storage";
 
+import {getPayrollPool} from "../lib/payroll-db";
+import {createMovementOnce} from "../lib/finance/requests.mjs";
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -31,6 +34,7 @@ async function requireOwner() {
   if (!user || !user.isActive) {
     throw new Error("Unauthorized. Please sign in.");
   }
+  return user.id;
 }
 
 function getReceiptFile(formData: FormData) {
@@ -76,7 +80,9 @@ function parseExpense(formData: FormData) {
     formData.get("description") || ""
   ).trim();
 
-  const amountValue = Number(formData.get("amount"));
+  const amountText=String(formData.get('amount')??'').trim();
+  if(!/^\d+(?:\.\d{1,2})?$/.test(amountText))throw new Error('Enter a valid expense amount with up to 2 decimal places.');
+  const amountValue = Number(amountText);
 
   const currency = String(
     formData.get("currency") || ""
@@ -107,7 +113,7 @@ function parseExpense(formData: FormData) {
 
   if (
     !Number.isFinite(amountValue) ||
-    amountValue <= 0
+    amountValue < 0.01 || amountValue>999999999
   ) {
     throw new Error(
       "Expense amount must be greater than 0."
@@ -184,7 +190,7 @@ function getExpenseRedirect(projectId: number | null) {
 }
 
 export async function createExpense(formData: FormData) {
-  await requireOwner();
+  const actor=await requireOwner();
 
   const data = parseExpense(formData);
 
@@ -198,7 +204,7 @@ export async function createExpense(formData: FormData) {
   const receipt = file ? await saveReceipt(file) : null;
 
   try {
-    await db.orm.public.Expense.create({
+    const result=await createMovementOnce(getPayrollPool(),{kind:"expense",requestId:formData.get("requestId"),actor,data:{
       projectId: data.projectId,
       date: data.date,
       supplier: data.supplier,
@@ -210,7 +216,8 @@ export async function createExpense(formData: FormData) {
       receiptFileName: receipt?.receiptFileName ?? null,
       receiptFilePath: receipt?.receiptFilePath ?? null,
       receiptMimeType: receipt?.receiptMimeType ?? null,
-    });
+    }});
+    if(result.duplicate&&receipt)await removeReceipt(receipt.receiptFilePath);
   } catch (error) {
     if (receipt) {
       try {

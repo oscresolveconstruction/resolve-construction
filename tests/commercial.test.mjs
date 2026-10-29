@@ -7,6 +7,8 @@ import path from 'node:path';
 import EmbeddedPostgres from 'embedded-postgres';
 import { Pool } from 'pg';
 import { createSupportingTables } from './schema-fixture.mjs';
+import {createMovementOnce,recordOnce} from '../app/lib/finance/requests.mjs';
+import {auditFinancialRecords} from '../app/lib/finance/audit.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
 import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord, voidInvoice } from '../app/lib/commercial/service.mjs';
 let pg,pool;
@@ -36,6 +38,7 @@ before(async()=>{
  INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,1,2,'GBP',now());
  `);
  await createSupportingTables(pool);
+ await pool.query(`ALTER TABLE "Payment" ADD COLUMN description text, ADD COLUMN "paymentMethod" text, ADD COLUMN "receiptFileName" text, ADD COLUMN "receiptFilePath" text, ADD COLUMN "receiptMimeType" text, ADD COLUMN "createdAt" timestamptz DEFAULT now()`);
  await migrate(pool);await migrate(pool);
 });
 after(async()=>{await pool?.end();await pg?.stop();});
@@ -177,4 +180,30 @@ test('payments block cancellation and payment/cancellation races have one winner
  assert.equal(count,row.status==='Void'?0:1);
  if(count)await assert.rejects(voidInvoice(pool,1,{invoiceId:inv,reason:'Has payment',confirm:'yes'}),/payments/);
  await assert.rejects(voidInvoice(pool,1,{invoiceId:1,reason:'Legacy has payment',confirm:'yes'}),/payments/);
+});
+
+test('retrying financial submissions creates one payment, expense or labour batch',async()=>{
+ const requestId=randomUUID();
+ const data={projectId:1,invoiceId:null,date:today,amount:'25.10',currency:'GBP',reference:'Idempotency test'};
+ const results=await Promise.all(Array.from({length:8},()=>createMovementOnce(pool,{kind:'payment',requestId,actor:1,data})));
+ assert.equal(new Set(results.map(r=>r.ids[0])).size,1);
+ assert.equal(results.filter(r=>!r.duplicate).length,1);
+ await assert.rejects(createMovementOnce(pool,{kind:'payment',requestId,actor:1,data:{...data,amount:'26'}}),/already saved/);
+ await assert.rejects(createMovementOnce(pool,{kind:'payment',requestId:randomUUID(),actor:2,data}),/Unauthorized/);
+ const expenseRequest=randomUUID();const expense={projectId:1,date:today,amount:'10.05',currency:'GBP',supplier:'Test supplier',category:'Materials',description:null,exchangeRate:null};
+ const a=await createMovementOnce(pool,{kind:'expense',requestId:expenseRequest,actor:1,data:expense});
+ const b=await createMovementOnce(pool,{kind:'expense',requestId:expenseRequest,actor:1,data:expense});assert.equal(a.ids[0],b.ids[0]);
+ const batchRequest=randomUUID();let creates=0;
+ for(let i=0;i<2;i++){
+  const c=await pool.connect();try{await c.query('BEGIN');await recordOnce(c,{kind:'labour',requestId:batchRequest,actor:1,payload:{date:today,rows:[{workerId:1,hours:'8'}]}},async()=>{creates++;return [123];});await c.query('COMMIT');}finally{c.release();}
+ }
+ assert.equal(creates,1);
+});
+test('financial identity guard and consistent read-only reconciliation',async()=>{
+ await assert.rejects(pool.query('UPDATE "Project" SET "customerId"=2 WHERE id=1'),/cannot change/);
+ await assert.rejects(pool.query(`UPDATE "Project" SET currency='EUR' WHERE id=1`),/cannot change/);
+ const before=(await pool.query('SELECT count(*) AS n FROM "Payment"')).rows[0].n;
+ const report=await auditFinancialRecords(pool);
+ assert.ok(report.counts.projects>=3);assert.ok(Array.isArray(report.findings));
+ assert.equal((await pool.query('SELECT count(*) AS n FROM "Payment"')).rows[0].n,before);
 });

@@ -5,6 +5,8 @@ import { getSessionUserId } from "../lib/auth";
 import { getPayrollPool } from "../lib/payroll-db";
 import { redirect } from "next/navigation";
 import type { PoolClient } from "pg";
+import {recordOnce} from "../lib/finance/requests.mjs";
+import {moneyProduct} from "../lib/finance/calculations.mjs";
 
 type LabourRow = {
   workerId: number;
@@ -25,6 +27,7 @@ async function requireOwner() {
   if (!user || !user.isActive) {
     throw new Error("Unauthorized. Please sign in.");
   }
+  return user.id;
 }
 
 function validId(value: number): boolean {
@@ -137,7 +140,7 @@ async function prepareEntry(
   }
 
   const projectResult = await client.query<{ name: string; currency: string }>(
-    `SELECT "name", "currency" FROM public."Project" WHERE "id" = $1`,
+    `SELECT "name", "currency" FROM public."Project" WHERE "id" = $1 FOR SHARE`,
     [projectId]
   );
   const project = projectResult.rows[0];
@@ -152,7 +155,7 @@ async function prepareEntry(
   if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
     throw new Error("Invalid hourly rate.");
   }
-  const amount = Number(hours) * hourlyRate;
+  const amount = moneyProduct(hours,worker.hourlyRate);
   if (!Number.isFinite(amount)) {
     throw new Error("Invalid labour amount.");
   }
@@ -168,7 +171,7 @@ async function prepareEntry(
 }
 
 export async function createDailyLabour(formData: FormData) {
-  await requireOwner();
+  const actor=await requireOwner();
   const date = parseLabourDate(formData.get("date"));
   const rowsJson = String(formData.get("rows") ?? "[]");
   let rows: unknown;
@@ -199,6 +202,7 @@ export async function createDailyLabour(formData: FormData) {
   const client = await getPayrollPool().connect();
   try {
     await client.query("BEGIN");
+    await recordOnce(client,{kind:'labour',requestId:formData.get('requestId'),actor,payload:{date,rows:parsedRows}},async()=>{
     const keys = parsedRows.map((row) => ({
       workerId: row.workerId,
       month: monthOf(date),
@@ -210,15 +214,19 @@ export async function createDailyLabour(formData: FormData) {
     for (const row of parsedRows) {
       prepared.push(await prepareEntry(client, row.workerId, row.projectId, row.hours));
     }
+    const ids:number[]=[];
     for (const row of prepared) {
-      await client.query(
+      const inserted=await client.query<{id:number}>(
         `INSERT INTO public."Labour"
          ("workerId", "projectId", "date", "hours", "hourlyRate",
           "amount", "currency", "exchangeRate", "description", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, NOW(), NOW())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, NOW(), NOW()) RETURNING id`,
         [row.workerId, row.projectId, date, row.hours, row.hourlyRate, row.amount, row.currency]
       );
+      ids.push(inserted.rows[0].id);
     }
+    return ids;
+    });
     await client.query("COMMIT");
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch (rollbackError) {
