@@ -63,7 +63,7 @@ export default function DocumentWorkspace({ number, pdfUrl, editable = false, ch
         }} className={`min-h-12 border-b-4 px-3 py-3 font-semibold ${tab === item.id ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-600'}`}>{item.label}</button>)}
     </div>
     {dirty && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Save your changes before previewing or sharing the PDF.</p>}
-    <section role="tabpanel" id={`${id}-details-panel`} aria-labelledby={`${id}-details`} hidden={tab !== 'details'} onChangeCapture={() => setDirty(true)} className="space-y-5 [&>form]:rounded-xl [&>form]:bg-white [&>form]:p-4">{children}</section>
+    <section role="tabpanel" id={`${id}-details-panel`} aria-labelledby={`${id}-details`} hidden={tab !== 'details'} onChangeCapture={() => setDirty(true)} onClickCapture={event => { if (editable && event.target instanceof Element && event.target.closest('button[type="button"]')) setDirty(true); }} className="space-y-5 [&>form]:rounded-xl [&>form]:bg-white [&>form]:p-4">{children}</section>
     <section role="tabpanel" id={`${id}-preview-panel`} aria-labelledby={`${id}-preview`} hidden={tab !== 'preview'} className="rounded-xl bg-slate-200 p-2 sm:p-4">
       {tab === 'preview' && !dirty && (pdf ? <PdfPreview file={pdf.file} /> : !error && <p role="status" className="p-6">Preparing PDF…</p>)}
       {dirty && <p className="p-6">Return to {editable ? 'Edit' : 'Details'} to save your changes.</p>}
