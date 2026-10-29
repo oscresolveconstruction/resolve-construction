@@ -6,6 +6,7 @@ export const runtime='nodejs';
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}) {
  await requireActiveUser();const id=Number((await params).id);if(!Number.isSafeInteger(id)||id<=0)return new Response('Not found',{status:404});
  const pool=getPayrollPool();const invoice=new URL(request.url).searchParams.get('kind')==='invoice';let data;
+ if((await pool.query('SELECT 1 FROM commercial_trash WHERE kind=$1 AND record_id=$2',[invoice?'invoice':'document',id])).rowCount)return new Response('Document in Trash; restore it before downloading',{status:410});
  if(invoice){
   const i=(await pool.query(`SELECT i.*,ci.customer_snapshot,ci.issuer_snapshot,ci.terms,d.number AS source_number,c.name AS client,c.address,c.email,c.phone,p.client AS project_client FROM "Invoice" i JOIN "Project" p ON p.id=i."projectId" LEFT JOIN "Customer" c ON c.id=p."customerId" LEFT JOIN commercial_invoice ci ON ci.invoice_id=i.id LEFT JOIN commercial_document d ON d.id=ci.source_id WHERE i.id=$1`,[id])).rows[0];
   if(!i)return new Response('Not found',{status:404});

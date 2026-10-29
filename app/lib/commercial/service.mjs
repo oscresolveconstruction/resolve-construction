@@ -208,3 +208,19 @@ export async function reviewHistoricalBilling(pool,actor,input) {
   await audit(c,d.id,actor,'Historical billing reconciled',{amountMinor:amount,evidence});return d.id;
  });
 }
+
+// Recoverable removal: financial allocations and issued numbers stay intact.
+export async function trashRecord(pool,actor,input) {
+ const id=positiveId(input.id);
+ if(!['document','invoice'].includes(input.kind))throw new Error('Invalid document type');
+ const restore=input.operation==='restore';
+ const reason=restore?'':text(input.reason,1000,true);
+ return transaction(pool,actor,async c=>{
+  const table=input.kind==='invoice'? '"Invoice"':'commercial_document';
+  const record=(await c.query(`SELECT id FROM ${table} WHERE id=$1 FOR UPDATE`,[id])).rows[0];
+  if(!record)throw new Error('Document not found');
+  if(restore)await c.query('DELETE FROM commercial_trash WHERE kind=$1 AND record_id=$2',[input.kind,id]);
+  else await c.query('INSERT INTO commercial_trash(kind,record_id,deleted_by,reason) VALUES($1,$2,$3,$4) ON CONFLICT(kind,record_id) DO NOTHING',[input.kind,id,actor,reason]);
+  return id;
+ });
+}
