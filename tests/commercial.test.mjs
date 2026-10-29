@@ -130,7 +130,7 @@ test('trash and restore preserve issued invoices, payments and billing limits',a
  const id=await saveDocument(pool,1,draft(),issuer);await approve(id);
  const invoiceId=await createManualInvoice(pool,1,invoice(id,'100'));
  await trashRecord(pool,1,{id:invoiceId,kind:'invoice',operation:'trash',reason:'Entered in error'});
- assert.equal((await pool.query('SELECT amount FROM "Invoice" WHERE id=$1',[invoiceId])).rows[0].amount,'100');
+ assert.equal(Number((await pool.query('SELECT amount FROM "Invoice" WHERE id=$1',[invoiceId])).rows[0].amount),100);
  await assert.rejects(createManualInvoice(pool,1,invoice(id,'1')),/exceeds/);
  await trashRecord(pool,1,{id:invoiceId,kind:'invoice',operation:'restore'});
  assert.equal((await pool.query("SELECT count(*) FROM commercial_trash WHERE kind='invoice' AND record_id=$1",[invoiceId])).rows[0].count,'0');
