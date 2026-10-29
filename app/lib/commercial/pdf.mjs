@@ -1,21 +1,44 @@
 import PDFDocument from 'pdfkit';
 import path from 'node:path';
+import { companyBranding, headerIssuer, headerDate, headerTotal } from './branding.mjs';
 export function renderDocumentPdf(data) {
  return new Promise((resolve,reject)=> {
   const doc=new PDFDocument({size:'A4',margin:44,bufferPages:true,info:{Title:`${data.type} ${data.number}`,Author:data.issuer.name}});
   const chunks=[]; doc.on('data',c=>chunks.push(c)); doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
   doc.registerFont('body',path.join(process.cwd(),'assets/fonts/DejaVuSans.ttf')).font('body');
+  doc.registerFont('heading',path.join(process.cwd(),'assets/fonts/DejaVuSans-Bold.ttf'));
+  const issuer=headerIssuer(data.issuer);
   const width=507, bottom=770;
   const money=n=>`${data.currency} ${(Number(n)/100).toFixed(2)}`;
   function header() {
-   doc.rect(0,0,596,10).fill('#ed510c');
-   doc.fillColor('#222').fontSize(17).text(data.issuer.name,44,35,{width:320});
-   doc.fontSize(9).text([data.issuer.address,data.issuer.email,data.issuer.phone].filter(Boolean).join('\n'),44,62,{width:305});
-   const leftBottom=doc.y;
-   doc.fillColor('#d84b08').fontSize(14).text(data.type,365,35,{width:186,align:'right'});
-   doc.fillColor('#222').fontSize(10).text(data.number,365,60,{width:186,align:'right'});
-   doc.fontSize(9).text(`Date: ${data.date}\n${data.status}`,365,78,{width:186,align:'right'});
-   doc.y=Math.max(leftBottom,doc.y,110)+16;doc.x=44;
+   const companyX=201, companyWidth=232, metaX=445, metaWidth=106;
+   const companyDetails=[issuer.address,issuer.postalCode&&`Postal code: ${issuer.postalCode}`,issuer.phone,issuer.email].filter(Boolean);
+   doc.font('heading').fontSize(13);
+   const nameHeight=doc.heightOfString(issuer.name,{width:companyWidth});
+   doc.font('body').fontSize(9.2);
+   const detailHeights=companyDetails.map(value=>doc.heightOfString(value,{width:companyWidth}));
+   const headerBottom=Math.max(166,56+nameHeight+10+detailHeights.reduce((sum,height)=>sum+height+7,0));
+   doc.rect(44,32,width,10).fill('#ff4b00');
+   doc.rect(44,47,width,headerBottom-47).fill('#fffbfa');
+   if(issuer.name===companyBranding.name)doc.image(path.join(process.cwd(),'assets/branding/resolve-logo.jpg'),44,48,{fit:[145,116],align:'center',valign:'center'});
+   doc.fillColor('#454545').font('heading').fontSize(13).text(issuer.name,companyX,56,{width:companyWidth});
+   let detailY=56+nameHeight+10;
+   doc.font('body').fontSize(9.2);
+   companyDetails.forEach((value,index)=>{doc.text(value,companyX,detailY,{width:companyWidth});detailY+=detailHeights[index]+7;});
+   const right=(text,y,size,font='body')=>{
+    doc.font(font).fontSize(size);
+    while(doc.widthOfString(text)>metaWidth && size>7){size-=.25;doc.fontSize(size);}
+    doc.text(text,metaX,y,{width:metaWidth,align:'right'});
+   };
+   right(data.type,51,9,'heading');
+   right(data.number,69,10);
+   right('DATE',95,8.5,'heading');
+   right(headerDate(data.date),112,10);
+   right('TOTAL',138,8.5,'heading');
+   right(headerTotal(data.currency,data.totalMinor),155,10);
+   doc.font('body').fontSize(9).fillColor('#222');
+   doc.y=headerBottom+18;doc.x=44;
+   if(data.status==='Draft'){doc.fillColor('#d84b08').text('DRAFT - not issued or approved',44,doc.y,{width});doc.y+=10;}
   }
   function newPage(){doc.addPage();header();}
   function ensure(height){if(doc.y+height>bottom)newPage();}
