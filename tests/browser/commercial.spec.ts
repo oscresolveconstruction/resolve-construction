@@ -35,7 +35,7 @@ test('extra works preserve the original contract and approve exactly once',async
  const id=Number(page.url().split('/').at(-1));await page.getByRole('button',{name:'Mark as sent'}).click();await page.getByLabel('Accepted by').fill('Test customer');await page.getByLabel('Acceptance date').fill(today);await page.getByLabel('Evidence / reference').fill('Extra approval');await page.getByRole('button',{name:'Record customer approval'}).click();await expect(page.locator('main h1')).toContainText('Approved');
  expect((await pool.query('SELECT "contractValue" FROM "Project" WHERE id=2')).rows[0].contractValue).toBe('0');
  expect((await pool.query('SELECT count(*) FROM commercial_invoice WHERE source_id=$1',[id])).rows[0].count).toBe('0');
- await page.goto('/projects/2/extra-works');await expect(page.getByRole('link',{name:/Browser extra/})).toBeVisible();
+ await page.goto('/projects/2/extra-works');await expect(page.locator(`a[href="/quotes/${id}"]`).filter({hasText:'Browser extra'})).toBeVisible();
 });
 
 test('mobile preview shares the actual PDF, handles cancellation and offers download fallback',async({page,context})=>{

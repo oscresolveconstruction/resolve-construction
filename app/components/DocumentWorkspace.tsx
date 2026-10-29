@@ -55,7 +55,7 @@ export default function DocumentWorkspace({ number, pdfUrl, editable = false, ch
   }
 
   return <div className="relative space-y-4 pb-28">
-    <div role="tablist" aria-label="Document views" className="sticky top-0 z-10 grid grid-cols-3 rounded-xl border bg-white shadow-sm">
+    <div role="tablist" aria-label="Document views" className="sticky top-16 z-10 grid md:top-0 grid-cols-3 rounded-xl border bg-white shadow-sm">
       {tabs.map((item, index) => <button key={item.id} id={`${id}-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls={`${id}-${item.id}-panel`} tabIndex={tab === item.id ? 0 : -1}
         onClick={() => setTab(item.id)} onKeyDown={event => {
           const target = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
