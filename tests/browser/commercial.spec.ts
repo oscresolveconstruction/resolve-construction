@@ -38,7 +38,7 @@ test('extra works preserve the original contract and approve exactly once',async
  await page.goto('/projects/2/extra-works');await expect(page.locator(`a[href="/quotes/${id}"]`).filter({hasText:'Browser extra'})).toBeVisible();
 });
 
-test('mobile preview shares the actual PDF, handles cancellation and offers download fallback',async({page,context})=>{
+test('mobile preview shares the actual PDF, handles cancellation and offers download fallback',async({page,context},testInfo)=>{
  const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
  await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
  await page.setViewportSize({width:390,height:844});
@@ -56,7 +56,7 @@ test('mobile preview shares the actual PDF, handles cancellation and offers down
  await expect(page.getByText('Page 1 of 1')).toBeVisible();
  await page.getByLabel('PDF zoom').selectOption('150');
  await expect(page.getByRole('img',{name:'PDF preview, page 1'})).toHaveAttribute('data-rendered','true');
- await page.screenshot({path:'playwright-report/mobile-invoice-preview.png',fullPage:true});
+ await testInfo.attach('mobile-invoice-preview',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
  await page.getByRole('button',{name:'Share',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.sharedFile)).toBeTruthy();
  const shared=JSON.parse(await page.evaluate(()=>document.documentElement.dataset.sharedFile!));
