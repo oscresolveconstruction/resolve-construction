@@ -1,18 +1,25 @@
-# Resolve Construction invoice assets and bank configuration
+# Corporate PDF branding
 
-Reference: supplied `RESINV0013.pdf`, pages 1–2.
+The PDF header follows the company header image supplied on 29 October 2026:
+logo at left, company contact details in the middle, and document type, number,
+date and total at right, under an orange rule. It is shared by Estimates,
+Extra Works and Invoices, including their Preview and Share PDF files.
 
-The company logo has been extracted from the PDF as an image asset. Add it to **private managed assets** or `public/resolve-logo.jpg` (after checking rights and approving publication), and configure `INVOICE_LOGO_URL=/resolve-logo.jpg`. The new print preview renders this configured logo. The image itself is not present in this PR yet.
+The previously supplied `resolve-logo-web.jpg` is bundled unchanged as
+`assets/branding/resolve-logo.jpg`. The supplied contact details are in
+`app/lib/commercial/branding.mjs`. New issuer snapshots use those defaults;
+optional `INVOICE_COMPANY_NAME`, `INVOICE_COMPANY_ADDRESS`,
+`INVOICE_COMPANY_POSTAL_CODE`, `INVOICE_COMPANY_EMAIL` and
+`INVOICE_COMPANY_PHONE` environment settings override them.
 
-For bank details, the print preview reads these Railway service environment variables (never store bank values in this public repository):
-- `INVOICE_BANK_ACCOUNT_NAME`
-- `INVOICE_BANK_ACCOUNT_NUMBER`
-- `INVOICE_BANK_SORT_CODE`
-- `INVOICE_BANK_IBAN`
-- `INVOICE_BANK_SWIFT`
+Existing nonempty issuer snapshot fields remain authoritative. Only missing
+contact fields for Resolve Construction Ltd are filled for display; no stored
+approved/issued document is rewritten. The number, date, total and currency
+come from each actual document. GBP is not relabelled GIP for visual similarity.
+Logo and embedded Unicode fonts are included in Next.js output tracing.
 
-The reference PDF includes a bank account and staged payment terms, but **do not copy its IBAN without confirming against the bank**: the PDF text appears as `G153...` (digit 1) while an earlier estimate template uses `GI53...` (letter I). The latter passes IBAN mod-97; that is not bank/account verification. Confirm with authorised company personnel before enabling customer documents.
-
-Payment terms in the source: 50% deposit, 25% on first evaluation, 25% on completion. The current print preview displays these as reference text; terms should eventually be stored per customer quote/invoice.
-
-No environment values, customer data, or bank details were committed in this branch. Do not merge or deploy until the logo is uploaded, bank information approved, PDF layout tested and per-invoice configurable terms are implemented.
+Bank details are independent of branding. They appear only in snapshots created
+with `INVOICE_BANK_DETAILS_VERIFIED=true` and supplied account-name, account-number,
+sort-code, IBAN and SWIFT environment settings. No bank values are bundled in code.
+Payment terms are saved manually per document; there is no automatic percentage
+billing or invoice generation.
