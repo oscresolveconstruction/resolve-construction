@@ -52,8 +52,8 @@ jobs:
         run: npx tsc --noEmit
       - name: Build
         run: npm run build
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium webkit
       - name: Browser workflows
         run: npx playwright test
       - name: Browser test report
