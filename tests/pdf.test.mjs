@@ -33,3 +33,8 @@ test('branding fills missing contact fields without rewriting historical issuer 
  assert.equal(result.email,companyBranding.email);assert.equal(old.email,'');
  assert.deepEqual(headerIssuer({name:'Another issuer',address:'Other address'}),{name:'Another issuer',address:'Other address'});
 });
+test('cancelled invoice PDF retains original amount and clearly states no payment due',async()=>{
+ const pdf=await renderDocumentPdf({type:'INVOICE',number:'CANCELLED-TEST',date:'2026-10-29',status:'Void',currency:'GBP',issuer:{...companyBranding,bank:''},customer:{name:'Test customer'},items:[{description:'Retained original line',quantity:'1',unitPriceMinor:7000,amountMinor:7000}],totalMinor:7000,paidMinor:0,notes:'CANCELLED: Incorrect amount'});
+ const [text]=await textPages(pdf);
+ assert.match(text,/CANCELLED - no payment due/);assert.match(text,/GBP £70.00/);assert.match(text,/BALANCE DUE\s+GBP 0.00/);assert.match(text,/Incorrect amount/);
+});

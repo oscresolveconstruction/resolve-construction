@@ -48,7 +48,7 @@ export default async function InvoicesPage({
 
   // Total facturado
   const totalInvoiced = invoices.reduce((total, invoice) => {
-    if (invoice.currency === project.currency) {
+    if (invoice.currency === project.currency && invoice.status !== 'Void') {
       return total + Number(invoice.amount);
     }
 
@@ -197,7 +197,7 @@ export default async function InvoicesPage({
 
           <tbody>
             {invoices.map((invoice) => {
-              const invoiceAmount = Number(invoice.amount);
+              const invoiceAmount = invoice.status==='Void'?0:Number(invoice.amount);
 
               // Pagos pertenecientes a esta factura
               const invoicePayments = payments.filter(
@@ -220,7 +220,9 @@ export default async function InvoicesPage({
               // Calcular estado automáticamente
               let status = invoice.status;
 
-              if (paidAmount >= invoiceAmount) {
+              if (invoice.status === 'Void') {
+                status = 'Cancelled';
+              } else if (paidAmount >= invoiceAmount) {
                 status = "Paid";
               } else if (paidAmount > 0) {
                 status = "Partially Paid";
