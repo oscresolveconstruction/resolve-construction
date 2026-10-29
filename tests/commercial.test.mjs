@@ -8,7 +8,7 @@ import EmbeddedPostgres from 'embedded-postgres';
 import { Pool } from 'pg';
 import { createSupportingTables } from './schema-fixture.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
-import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling } from '../app/lib/commercial/service.mjs';
+import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord } from '../app/lib/commercial/service.mjs';
 let pg,pool;
 const issuer={name:'Test issuer',bank:''};
 const today=new Date().toISOString().slice(0,10);
@@ -124,4 +124,18 @@ test('expired estimates cannot be approved and public API roles cannot read snap
  await assert.rejects(transitionDocument(pool,1,{id,revision:1,status:'Sent'}),/expired/);
  const rows=(await pool.query("SELECT relrowsecurity FROM pg_class WHERE relname IN ('commercial_document','commercial_invoice','commercial_audit')")).rows;
  assert.equal(rows.length,3);assert.ok(rows.every(r=>r.relrowsecurity));
+});
+
+test('trash and restore preserve issued invoices, payments and billing limits',async()=>{
+ const id=await saveDocument(pool,1,draft(),issuer);await approve(id);
+ const invoiceId=await createManualInvoice(pool,1,invoice(id,'100'));
+ await trashRecord(pool,1,{id:invoiceId,kind:'invoice',operation:'trash',reason:'Entered in error'});
+ assert.equal((await pool.query('SELECT amount FROM "Invoice" WHERE id=$1',[invoiceId])).rows[0].amount,'100');
+ await assert.rejects(createManualInvoice(pool,1,invoice(id,'1')),/exceeds/);
+ await trashRecord(pool,1,{id:invoiceId,kind:'invoice',operation:'restore'});
+ assert.equal((await pool.query("SELECT count(*) FROM commercial_trash WHERE kind='invoice' AND record_id=$1",[invoiceId])).rows[0].count,'0');
+ await trashRecord(pool,1,{id,kind:'document',operation:'trash',reason:'Duplicate source'});
+ await trashRecord(pool,1,{id,kind:'document',operation:'restore'});
+ await assert.rejects(trashRecord(pool,99999,{id,kind:'document',operation:'trash',reason:'No access'}),/Unauthorized/);
+ await migrate(pool); // Both migration checksums remain stable on repeated deployment.
 });

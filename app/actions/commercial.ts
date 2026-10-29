@@ -3,14 +3,23 @@ import { revalidatePath } from 'next/cache';
 import { requireActiveUser } from '../lib/require-active-user';
 import { getPayrollPool } from '../lib/payroll-db';
 import { issuerSnapshot } from '../lib/commercial/issuer';
-import { saveDocument, transitionDocument, linkProject, createManualInvoice, allocatePayment, reviseDocument, importLegacyExtra, reviewHistoricalBilling } from '../lib/commercial/service.mjs';
+import { saveDocument, transitionDocument, linkProject, createManualInvoice, allocatePayment, reviseDocument, importLegacyExtra, reviewHistoricalBilling, trashRecord } from '../lib/commercial/service.mjs';
 export async function commercialAction(form: FormData) {
  const owner = await requireActiveUser();
  const input = Object.fromEntries(form.entries());
  try {
   const pool = getPayrollPool();
+  if(!['trash','restore','save','import-extra'].includes(String(input.operation)) || (input.operation==='save' && input.id)) {
+   const kind=input.operation==='allocate'?'invoice':'document';
+   const recordId=input.operation==='allocate'?input.invoiceId:input.operation==='invoice'?input.sourceId:input.id;
+   if(recordId && (await pool.query('SELECT 1 FROM commercial_trash WHERE kind=$1 AND record_id=$2',[kind,recordId])).rowCount)throw new Error('Restore this document from Trash before continuing.');
+  }
   let id;
   switch(input.operation) {
+   case 'trash': case 'restore': {
+    await trashRecord(pool,owner.id,input);revalidatePath('/','layout');
+    return {url:input.kind==='invoice'?'/invoices':'/quotes',error:''};
+   }
    case 'review-history': id=await reviewHistoricalBilling(pool,owner.id,input); break;
    case 'import-extra': id=await importLegacyExtra(pool,owner.id,input,issuerSnapshot()); break;
    case 'save': id = await saveDocument(pool,owner.id,{...input,items:JSON.parse(String(input.items))},issuerSnapshot()); break;

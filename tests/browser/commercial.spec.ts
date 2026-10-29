@@ -105,3 +105,17 @@ test('mobile preview renders every page of a long PDF',async({page,context})=>{
  await expect(page.getByRole('button',{name:'Next PDF page'})).toBeDisabled();
  await page.getByRole('button',{name:'Previous PDF page'}).click();await expect(page.getByRole('img',{name:'PDF preview, page 2'})).toHaveAttribute('data-rendered','true');
 });
+
+
+test('owner can delete and restore a mistaken estimate',async({page,context})=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ await page.goto('/quotes/new');await page.getByRole('combobox',{name:'Customer',exact:true}).selectOption('1');
+ await page.getByLabel('Title',{exact:true}).fill('Trash acceptance');await page.getByLabel('Description',{exact:true}).fill('Mistaken draft');await page.getByLabel('Unit price').fill('10');
+ await page.getByRole('button',{name:'Save draft'}).click();await expect(page).toHaveURL(/\/quotes\/\d+$/);const url=page.url();const id=url.split('/').at(-1);
+ await page.getByRole('button',{name:'Delete document',exact:true}).click();await page.getByLabel('Reason',{exact:true}).fill('Mistake');await page.getByLabel('I confirm moving this document to Trash.').check();await page.getByRole('button',{name:'Confirm deletion'}).click();await expect(page).toHaveURL('/quotes');
+ await expect(page.locator(`a[href="/quotes/${id}"]`)).toHaveCount(0);
+ await page.getByRole('link',{name:'Trash / restore deleted documents'}).click();await page.locator(`a[href="/quotes/${id}"]`).click();await expect(page.getByRole('heading',{name:'Document in Trash'})).toBeVisible();
+ const pdf=await page.request.get(`/api/documents/${id}/pdf`);expect(pdf.status()).toBe(410);
+ await page.getByRole('button',{name:'Restore document'}).click();await expect(page).toHaveURL('/quotes');await page.goto(url);await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Trash acceptance');
+});

@@ -1,3 +1,4 @@
+import TrashDocument from '../../../components/TrashDocument';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
@@ -18,6 +19,8 @@ export default async function DocumentPage({params}:{params:Promise<{quoteId:str
  const field='block w-full rounded border p-2';
  const hidden=<><input type="hidden" name="id" value={id}/><input type="hidden" name="revision" value={d.revision}/></>;
  const money=(n:number)=>`${d.currency} ${(n/100).toFixed(2)}`;
+ const deleted=(await pool.query("SELECT 1 FROM commercial_trash WHERE kind='document' AND record_id=$1",[id])).rowCount;
+ if(deleted)return <div className="p-6"><h1 className="text-2xl font-bold">Document in Trash</h1><TrashDocument id={id} kind="document" deleted/></div>;
  return <div className="mx-auto max-w-5xl space-y-4 p-3 sm:p-6"><Link href="/quotes" className="underline">← Documents</Link><h1 className="text-3xl font-bold">{d.number} · {d.status}</h1><p>{d.title} · {d.customer_snapshot.name}</p><p className="font-bold">Total: {money(Number(d.total_minor))}</p>{d.project_id&&<Link href={`/projects/${d.project_id}`} className="inline-block underline">Project</Link>}
  <DocumentWorkspace key={`${d.id}-${d.revision}-${d.status}-${invoices.length}-${d.historical_reviewed}`} number={d.number} pdfUrl={`/api/documents/${id}/pdf`} editable={d.status==='Draft'} history={<><h2 className="text-xl font-bold">Audit history</h2>{audit.map(a=><p className="break-words border-b py-2 text-sm" key={a.id}>{a.created_at.toISOString()} · {a.name} · {a.event}</p>)}</>}>
 
@@ -30,5 +33,5 @@ export default async function DocumentPage({params}:{params:Promise<{quoteId:str
  {!d.historical_reviewed&&<CommercialForm button="Confirm historical billing"><input type="hidden" name="operation" value="review-history"/>{hidden}<p>Review existing invoices (including external invoices) for this historical work before issuing any more.</p><label className="block">Already invoiced ({d.currency})<input name="amount" required type="number" min="0" step="0.01" max={Number(d.total_minor)/100} className={field}/></label><label className="block">Reconciliation evidence<textarea name="evidence" required className={field}/></label></CommercialForm>}
  {d.project_id&&d.historical_reviewed&&remaining>0&&<CommercialForm button="Issue invoice manually"><input type="hidden" name="operation" value="invoice"/><input type="hidden" name="sourceId" value={id}/><input type="hidden" name="requestId" value={randomUUID()}/><label className="block">Amount ({d.currency})<input name="amount" required type="number" step="0.01" min="0.01" max={remaining/100} className={field}/></label><label className="block">Description<textarea name="description" required maxLength={5000} className={field}/></label><label className="block">Issue date<input name="issueDate" required type="date" defaultValue={new Date().toISOString().slice(0,10)} className={field}/></label><label className="block">Due date<input name="dueDate" type="date" className={field}/></label><label className="block"><input type="checkbox" required/> I confirm this amount and want to issue this invoice. Issued invoices are locked.</label></CommercialForm>}
  {invoices.map(i=><p key={i.id}><Link className="underline" href={`/invoices/${i.id}`}>{i.invoiceNumber}</Link> · {money(Number(i.amount_minor))}</p>)}</section>}
- </DocumentWorkspace></div>;
+ </DocumentWorkspace><TrashDocument id={id} kind="document"/></div>;
 }

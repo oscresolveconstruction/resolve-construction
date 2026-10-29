@@ -21,6 +21,11 @@ export async function migrate(pool) {
    if (JSON.stringify(before) !== JSON.stringify(await counts())) throw new Error('Existing row counts changed; rolling back migration');
    await client.query("INSERT INTO commercial_migration(version,checksum) VALUES ('001',$1)",[checksum]);
   }
+  const sql2=await readFile(new URL('../db/commercial/002.sql',import.meta.url),'utf8');
+  const checksum2=createHash('sha256').update(sql2).digest('hex');
+  const previous2=await client.query("SELECT checksum FROM commercial_migration WHERE version='002'");
+  if(previous2.rows.length && previous2.rows[0].checksum!==checksum2)throw new Error('Migration checksum mismatch');
+  if(!previous2.rows.length){await client.query(sql2);await client.query("INSERT INTO commercial_migration(version,checksum) VALUES ('002',$1)",[checksum2]);}
   await client.query('COMMIT');
  } catch(e) { await client.query('ROLLBACK'); throw e; }
  finally { client.release(); }
