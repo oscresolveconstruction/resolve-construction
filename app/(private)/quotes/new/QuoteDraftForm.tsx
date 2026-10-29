@@ -32,7 +32,7 @@ export default function QuoteDraftForm({customers,projects,initial={}}:{customer
    <button type="button" disabled={lines.length===1} onClick={()=>setLines(lines.filter((_,j)=>j!==i))}>Remove</button>
   </div>)}
   <button type="button" className="rounded border px-4 py-2" onClick={()=>setLines([...lines,{description:'',quantity:'1',unitPrice:''}])}>Add item</button>
-  <label className="block">Payment terms (manual)<textarea name="terms" maxLength={5000} defaultValue={initial.terms} className={input}/></label>
+  <label className="block">Payment terms (manual)<textarea name="terms" maxLength={5000} defaultValue={initial.terms ?? '50% deposit.\n50% on completion.'} className={input}/></label>
   <label className="block">Notes<textarea name="notes" maxLength={5000} defaultValue={initial.notes} className={input}/></label>
   <p className="text-sm text-gray-600">Saving or approving a document never creates an invoice. You choose each invoice amount after approval.</p>
  </CommercialForm>;
