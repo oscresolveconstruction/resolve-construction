@@ -147,7 +147,7 @@ export async function createManualInvoice(pool,actor,input) {
    if (duplicate.source_id!==id || Number(duplicate.amount_minor)!==amount || duplicate.description!==description || duplicate.issueDate.toISOString().slice(0,10)!==issueDate || (duplicate.dueDate?.toISOString().slice(0,10)??null)!==dueDate) throw new Error('Request identifier already used for another invoice');
    return duplicate.invoice_id;
   }
-  const billed=Number((await c.query('SELECT COALESCE(sum(amount_minor),0) AS amount FROM commercial_invoice WHERE source_id=$1',[id])).rows[0].amount);
+  const billed=Number((await c.query(`SELECT COALESCE(sum(ci.amount_minor),0) AS amount FROM commercial_invoice ci JOIN "Invoice" i ON i.id=ci.invoice_id WHERE ci.source_id=$1 AND i.status<>'Void'`,[id])).rows[0].amount);
   if (amount>Number(d.total_minor)-Number(d.previous_billed_minor)-billed) throw new Error('Invoice exceeds the remaining approved amount');
   const allocated=await number(c,'invoice',issueDate);
   const invoice=(await c.query(`INSERT INTO "Invoice" ("projectId","invoiceNumber","issueDate","dueDate",amount,currency,status,description,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,'Issued',$7,now(),now()) RETURNING id`,[d.project_id,allocated,issueDate,dueDate,(amount/100).toFixed(2),d.currency,description])).rows[0];
@@ -158,6 +158,7 @@ export async function createManualInvoice(pool,actor,input) {
 export async function allocatePayment(pool,actor,invoiceId,paymentId) {
  return transaction(pool,actor,async c=> {
   const invoice=(await c.query('SELECT * FROM "Invoice" WHERE id=$1 FOR UPDATE',[positiveId(invoiceId)])).rows[0];
+  if(invoice?.status==='Void')throw new Error('Cannot pay a cancelled invoice');
   const payment=(await c.query('SELECT * FROM "Payment" WHERE id=$1 FOR UPDATE',[positiveId(paymentId)])).rows[0];
   if (!invoice || !payment || payment.invoiceId || payment.projectId!==invoice.projectId || payment.currency!==invoice.currency) throw new Error('Select an unallocated payment with matching project and currency');
   const paid=Number((await c.query('SELECT COALESCE(sum(amount),0) AS amount FROM "Payment" WHERE "invoiceId"=$1',[invoice.id])).rows[0].amount);
@@ -221,6 +222,25 @@ export async function trashRecord(pool,actor,input) {
   if(!record)throw new Error('Document not found');
   if(restore)await c.query('DELETE FROM commercial_trash WHERE kind=$1 AND record_id=$2',[input.kind,id]);
   else await c.query('INSERT INTO commercial_trash(kind,record_id,deleted_by,reason) VALUES($1,$2,$3,$4) ON CONFLICT(kind,record_id) DO NOTHING',[input.kind,id,actor,reason]);
+  return id;
+ });
+}
+
+export async function voidInvoice(pool,actor,input) {
+ const id=positiveId(input.invoiceId),reason=text(input.reason,1000,true);
+ if(input.confirm!=='yes')throw new Error('Confirm invoice cancellation');
+ return transaction(pool,actor,async c=>{
+  // Same lock order as billing: source first, then invoice. Payments lock invoice.
+  const link=(await c.query('SELECT source_id FROM commercial_invoice WHERE invoice_id=$1',[id])).rows[0];
+  if(link)await c.query('SELECT id FROM commercial_document WHERE id=$1 FOR UPDATE',[link.source_id]);
+  const invoice=(await c.query('SELECT * FROM "Invoice" WHERE id=$1 FOR UPDATE',[id])).rows[0];
+  if(!invoice)throw new Error('Invoice not found');
+  if((await c.query('SELECT 1 FROM commercial_invoice_void WHERE invoice_id=$1',[id])).rowCount)return id;
+  if((await c.query('SELECT 1 FROM "Payment" WHERE "invoiceId"=$1 LIMIT 1',[id])).rowCount)throw new Error('Resolve all allocated payments before cancelling this invoice.');
+  await c.query('INSERT INTO commercial_invoice_void(invoice_id,actor_id,reason) VALUES($1,$2,$3)',[id,actor,reason]);
+  await c.query(`UPDATE "Invoice" SET status='Void',"updatedAt"=now() WHERE id=$1`,[id]);
+  await c.query("DELETE FROM commercial_trash WHERE kind='invoice' AND record_id=$1",[id]);
+  if(link)await audit(c,link.source_id,actor,'Invoice cancelled',{invoiceId:id,reason,amountMinor:Math.round(Number(invoice.amount)*100)});
   return id;
  });
 }

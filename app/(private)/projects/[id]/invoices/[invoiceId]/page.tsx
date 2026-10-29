@@ -34,6 +34,7 @@ export default async function InvoiceDetailPage({
     notFound();
   }
 
+  if(invoice.status==='Void')redirect(`/invoices/${invoiceIdNumber}`);
   const linked = await getPayrollPool().query('SELECT invoice_id FROM commercial_invoice WHERE invoice_id=$1', [invoiceIdNumber]);
   if (linked.rowCount) redirect(`/invoices/${invoiceIdNumber}`);
 

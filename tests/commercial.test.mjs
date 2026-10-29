@@ -8,7 +8,7 @@ import EmbeddedPostgres from 'embedded-postgres';
 import { Pool } from 'pg';
 import { createSupportingTables } from './schema-fixture.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
-import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord } from '../app/lib/commercial/service.mjs';
+import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord, voidInvoice } from '../app/lib/commercial/service.mjs';
 let pg,pool;
 const issuer={name:'Test issuer',bank:''};
 const today=new Date().toISOString().slice(0,10);
@@ -138,4 +138,43 @@ test('trash and restore preserve issued invoices, payments and billing limits',a
  await trashRecord(pool,1,{id,kind:'document',operation:'restore'});
  await assert.rejects(trashRecord(pool,99999,{id,kind:'document',operation:'trash',reason:'No access'}),/Unauthorized/);
  await migrate(pool); // Both migration checksums remain stable on repeated deployment.
+});
+
+test('cancellation preserves original, releases billing once, cannot be reversed or paid',async()=>{
+ const source=await saveDocument(pool,1,draft(),issuer);await approve(source);
+ const inv=await createManualInvoice(pool,1,invoice(source,'100'));
+ const before=(await pool.query('SELECT * FROM "Invoice" WHERE id=$1',[inv])).rows[0];
+ await assert.rejects(voidInvoice(pool,2,{invoiceId:inv,reason:'Denied',confirm:'yes'}),/Unauthorized/);
+ await assert.rejects(voidInvoice(pool,1,{invoiceId:inv,reason:'Missing confirmation'}),/Confirm/);
+ await assert.rejects(voidInvoice(pool,1,{invoiceId:inv,reason:'',confirm:'yes'}),/text/);
+ await trashRecord(pool,1,{id:inv,kind:'invoice',operation:'trash',reason:'Mistake'});
+ await Promise.all(Array.from({length:4},()=>voidInvoice(pool,1,{invoiceId:inv,reason:'Incorrect amount',confirm:'yes'})));
+ const after=(await pool.query('SELECT * FROM "Invoice" WHERE id=$1',[inv])).rows[0];
+ assert.equal(after.status,'Void');assert.equal(after.amount,before.amount);assert.equal(after.invoiceNumber,before.invoiceNumber);
+ assert.equal((await pool.query('SELECT count(*) FROM commercial_invoice_void WHERE invoice_id=$1',[inv])).rows[0].count,'1');
+ await assert.rejects(pool.query(`UPDATE "Invoice" SET status='Issued' WHERE id=$1`,[inv]),/immutable/);
+ await assert.rejects(pool.query('DELETE FROM "Invoice" WHERE id=$1',[inv]),/immutable/);
+ await assert.rejects(pool.query('DELETE FROM commercial_invoice_void WHERE invoice_id=$1',[inv]),/immutable/);
+ await assert.rejects(pool.query('INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,$1,1,\'GBP\',now())',[inv]),/cancelled/);
+ const payment=(await pool.query('INSERT INTO "Payment"("projectId",amount,currency,date) VALUES(1,1,\'GBP\',now()) RETURNING id')).rows[0].id;
+ await assert.rejects(allocatePayment(pool,1,inv,payment),/cancelled/);
+ const replacement=await createManualInvoice(pool,1,invoice(source,'100'));
+ assert.notEqual(replacement,inv);
+ await assert.rejects(createManualInvoice(pool,1,invoice(source,'1')),/exceeds/);
+ assert.equal((await pool.query("SELECT count(*) FROM commercial_audit WHERE document_id=$1 AND event='Invoice cancelled'",[source])).rows[0].count,'1');
+ await migrate(pool);
+});
+test('payments block cancellation and payment/cancellation races have one winner',async()=>{
+ const source=await saveDocument(pool,1,draft(),issuer);await approve(source);
+ const inv=await createManualInvoice(pool,1,invoice(source,'100'));
+ const results=await Promise.allSettled([
+  voidInvoice(pool,1,{invoiceId:inv,reason:'Concurrent cancellation',confirm:'yes'}),
+  pool.query('INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,$1,1,\'GBP\',now())',[inv])
+ ]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ const row=(await pool.query('SELECT status FROM "Invoice" WHERE id=$1',[inv])).rows[0];
+ const count=Number((await pool.query('SELECT count(*) FROM "Payment" WHERE "invoiceId"=$1',[inv])).rows[0].count);
+ assert.equal(count,row.status==='Void'?0:1);
+ if(count)await assert.rejects(voidInvoice(pool,1,{invoiceId:inv,reason:'Has payment',confirm:'yes'}),/payments/);
+ await assert.rejects(voidInvoice(pool,1,{invoiceId:1,reason:'Legacy has payment',confirm:'yes'}),/payments/);
 });

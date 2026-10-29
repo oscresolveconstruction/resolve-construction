@@ -119,3 +119,19 @@ test('owner can delete and restore a mistaken estimate',async({page,context})=>{
  const pdf=await page.request.get(`/api/documents/${id}/pdf`);expect(pdf.status()).toBe(410);
  await page.getByRole('button',{name:'Restore document'}).click();await expect(page).toHaveURL('/quotes');await page.goto(url);await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Trash acceptance');
 });
+
+test('cancel mistaken invoice, retain PDF and manually issue replacement',async({page,context})=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ await page.goto('/quotes/new');await page.getByRole('combobox',{name:'Customer',exact:true}).selectOption('1');await page.getByRole('combobox',{name:'Project (optional)',exact:true}).selectOption('1');
+ await page.getByLabel('Title',{exact:true}).fill('Cancellation acceptance');await page.getByLabel('Description',{exact:true}).fill('Test work');await page.getByLabel('Unit price').fill('100');await page.getByRole('button',{name:'Save draft'}).click();await expect(page).toHaveURL(/\/quotes\/\d+$/);const sourceUrl=page.url();
+ await page.getByRole('button',{name:'Mark as sent'}).click();await page.getByLabel('Accepted by').fill('Test customer');await page.getByLabel('Acceptance date').fill(today);await page.getByLabel('Evidence / reference').fill('Test approval');await page.getByRole('button',{name:'Record customer approval'}).click();
+ await page.getByLabel('Amount (GBP)').fill('70');await page.getByLabel('Description',{exact:true}).fill('Incorrect invoice');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Issue invoice manually'}).click();await expect(page).toHaveURL(/\/invoices\/\d+$/);const invoiceUrl=page.url();const invoiceId=invoiceUrl.split('/').at(-1);
+ await page.getByRole('button',{name:'Cancel invoice',exact:true}).click();await page.getByLabel('Cancellation reason').fill('Incorrect amount');await page.getByLabel('I confirm cancellation of this invoice.').check();await page.getByRole('button',{name:'Confirm cancellation'}).click();
+ await expect(page.getByRole('heading',{name:/Cancelled/})).toBeVisible();await expect(page.getByText('Incorrect amount',{exact:true})).toBeVisible();await expect(page.getByRole('link',{name:'Record payment',exact:true})).toHaveCount(0);
+ const response=await page.request.get(`/api/documents/${invoiceId}/pdf?kind=invoice`);expect(response.status()).toBe(200);expect(response.headers()['content-type']).toBe('application/pdf');
+ await page.goto(sourceUrl);await expect(page.getByRole('heading',{name:'Remaining to invoice: GBP 100.00'})).toBeVisible();
+ await page.getByLabel('Amount (GBP)').fill('100');await page.getByLabel('Description',{exact:true}).fill('Correct replacement');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Issue invoice manually'}).click();await expect(page).toHaveURL(/\/invoices\/\d+$/);expect(page.url()).not.toBe(invoiceUrl);
+ const replacementId=Number(page.url().split('/').at(-1));await pool.query('INSERT INTO "Payment"("projectId","invoiceId",amount,currency,date) VALUES(1,$1,1,\'GBP\',now())',[replacementId]);await page.reload();await expect(page.getByRole('button',{name:'Cancel invoice',exact:true})).toBeDisabled();
+ await page.goto('/invoices');await expect(page.locator('tr').filter({has:page.locator(`a[href="/invoices/${invoiceId}"]`)})).toContainText('Cancelled');
+});

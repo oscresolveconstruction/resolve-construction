@@ -38,6 +38,7 @@ export function renderDocumentPdf(data) {
    right(headerTotal(data.currency,data.totalMinor),155,10);
    doc.font('body').fontSize(9).fillColor('#222');
    doc.y=headerBottom+18;doc.x=44;
+   if(data.status==='Void'){doc.font('heading').fontSize(12).fillColor('#bb2222').text('CANCELLED - no payment due',44,doc.y,{width});doc.y+=10;doc.font('body');}
    if(data.status==='Draft'){doc.fillColor('#d84b08').text('DRAFT - not issued or approved',44,doc.y,{width});doc.y+=10;}
   }
   function newPage(){doc.addPage();header();}
@@ -83,7 +84,7 @@ export function renderDocumentPdf(data) {
   doc.fillColor('#222').fontSize(13).text(`TOTAL   ${money(data.totalMinor)}`,44,doc.y,{width,align:'right'});
   if(data.type==='INVOICE'){
    doc.fontSize(11).text(`Payments   ${money(data.paidMinor||0)}`,{align:'right'});
-   doc.text(`BALANCE DUE   ${money(data.totalMinor-(data.paidMinor||0))}`,{align:'right'});
+   doc.text(`BALANCE DUE   ${money(data.status==='Void'?0:data.totalMinor-(data.paidMinor||0))}`,{align:'right'});
    if(data.dueDate)doc.fontSize(9).text(`Due: ${data.dueDate}`,{align:'right'});
   }
   doc.y+=20;
