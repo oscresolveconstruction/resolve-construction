@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto';
+import PendingSubmit from '../../../../../components/PendingSubmit';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createPayment } from "../../../../../actions/payments";
@@ -59,7 +61,7 @@ export default async function NewPaymentPage({
           action={createPayment}
           encType="multipart/form-data"
           className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
-        >
+        ><input type="hidden" name="requestId" value={randomUUID()}/>
           <div className="h-2 bg-orange-500" />
 
           <div className="p-6 lg:p-8">
@@ -234,12 +236,12 @@ export default async function NewPaymentPage({
                 Cancel
               </Link>
 
-              <button
+              <PendingSubmit
                 type="submit"
                 className="rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-700"
               >
                 Save Payment
-              </button>
+              </PendingSubmit>
             </div>
           </div>
         </form>

@@ -9,6 +9,9 @@ import {
   removeReceipt,
 } from "../lib/receipt-storage";
 
+import {getPayrollPool} from "../lib/payroll-db";
+import {createMovementOnce} from "../lib/finance/requests.mjs";
+
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 
 async function requireOwner() {
@@ -25,6 +28,7 @@ async function requireOwner() {
   if (!user || !user.isActive) {
     throw new Error("Unauthorized. Please sign in.");
   }
+  return user.id;
 }
 
 function validId(value: number) {
@@ -216,7 +220,7 @@ function revalidatePaymentPages(projectId: number) {
 }
 
 export async function createPayment(formData: FormData) {
-  await requireOwner();
+  const actor=await requireOwner();
 
   const data = parsePayment(formData);
 
@@ -229,13 +233,14 @@ export async function createPayment(formData: FormData) {
     : null;
 
   try {
-    await db.orm.public.Payment.create({
+    const result=await createMovementOnce(getPayrollPool(),{kind:"payment",requestId:formData.get("requestId"),actor,data:{
       ...data,
       invoiceId: null,
       receiptFileName: saved?.receiptFileName ?? null,
       receiptFilePath: saved?.receiptFilePath ?? null,
       receiptMimeType: saved?.receiptMimeType ?? null,
-    });
+    }});
+    if(result.duplicate&&saved)await safeDeleteReceipt(saved.receiptFilePath);
   } catch (error) {
     if (saved) {
       await safeDeleteReceipt(saved.receiptFilePath);

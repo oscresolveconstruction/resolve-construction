@@ -1,3 +1,4 @@
+import {companyCostGBP,sumMoney,differenceMoney,projectFinancials} from '../lib/finance/calculations.mjs';
 import Link from "next/link";
 
 import { db } from "../../src/prisma/db";
@@ -47,7 +48,7 @@ function sumAmounts<T>(items: T[], convert: (item: T) => number | null): AmountR
 
     if (amount === null || !Number.isFinite(amount)) result.missing++;
 
-    else result.total += amount;
+    else result.total=sumMoney([result.total,amount]);
 
     return result;
 
@@ -114,39 +115,9 @@ export default async function Home({ searchParams }: DashboardProps) {
 
   const expenseToGBP = (expense: (typeof expenses)[number]): number | null => {
 
-    const amount = Number(expense.amount);
-
-    if (expense.currency === "GBP") return amount;
-
-    const rate = Number(expense.exchangeRate ?? 0);
-
-    if (rate <= 0) return null;
-
-    if (expense.projectId === null) return amount * rate;
-
-    return projectMap.get(expense.projectId)?.currency === "GBP" ? amount * rate : null;
-
+    return companyCostGBP(expense,expense.projectId===null?'GBP':projectMap.get(expense.projectId)?.currency);
   };
-
-
-
-  const labourToGBP = (entry: (typeof labour)[number]): number | null => {
-
-    const amount = Number(entry.amount);
-
-    if (entry.currency === "GBP") return amount;
-
-    const rate = Number(entry.exchangeRate ?? 0);
-
-    return projectMap.get(entry.projectId)?.currency === "GBP" && rate > 0
-
-      ? amount * rate
-
-      : null;
-
-  };
-
-
+  const labourToGBP=(entry:(typeof labour)[number]):number|null=>companyCostGBP(entry,projectMap.get(entry.projectId)?.currency);
 
   // Movements are filtered by their recorded date; contracts and extras
   // are lifetime values and are never presented as monthly revenue.
@@ -188,18 +159,18 @@ export default async function Home({ searchParams }: DashboardProps) {
 
 
 
-  const totalValue = contracts.total + approvedExtras.total;
+  const totalValue = sumMoney([contracts.total,approvedExtras.total]);
 
-  const totalExpenses = projectExpenses.total + generalExpenses.total;
+  const totalExpenses = sumMoney([projectExpenses.total,generalExpenses.total]);
 
-  const totalCosts = totalExpenses + labourCosts.total;
+  const totalCosts = sumMoney([totalExpenses,labourCosts.total]);
 
   const lifetimeReceived = sumAmounts(payments, (payment) =>
     payment.currency === "GBP" ? Number(payment.amount) : null
   );
-  const outstanding = totalValue - lifetimeReceived.total;
+  const outstanding=sumMoney(projects.filter(p=>p.currency==='GBP').map(p=>projectFinancials(p,{extras:approvedWorks,payments}).outstanding));
 
-  const estimatedProfit = totalValue - totalCosts;
+  const estimatedProfit = differenceMoney(totalValue,totalCosts);
 
   const valueMissing = contracts.missing + approvedExtras.missing;
 
@@ -243,11 +214,8 @@ export default async function Home({ searchParams }: DashboardProps) {
 
     const hasOtherCurrencies = sameCurrencyExtras.length !== extras.length || sameCurrencyPayments.length !== projectPayments.length;
 
-    const value = Number(project.contractValue) + sameCurrencyExtras.reduce((sum, work) => sum + Number(work.amount), 0);
-
-    const paid = sameCurrencyPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-
-    return { project, value, paid, outstanding: value - paid, hasOtherCurrencies };
+    const summary=projectFinancials(project,{extras,payments:projectPayments});
+    return {project,value:summary.totalValue,paid:summary.received,outstanding:summary.outstanding,hasOtherCurrencies};
 
   });
 

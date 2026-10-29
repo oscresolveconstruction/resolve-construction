@@ -1,3 +1,4 @@
+import {projectFinancials} from '../../../../lib/finance/calculations.mjs';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "../../../../../src/prisma/db";
@@ -39,24 +40,8 @@ export default async function PaymentsPage({
     db.orm.public.ExtraWork.where({ projectId }).all(),
   ]);
 
-  const contractValue = Number(project.contractValue);
-
-  const approvedExtraWorks = extraWorks
-    .filter(
-      (work) =>
-        work.status === "Approved" &&
-        work.currency === project.currency
-    )
-    .reduce((total, work) => total + Number(work.amount), 0);
-
-  const totalProjectValue = contractValue + approvedExtraWorks;
-
-  const totalPaid = payments
-    .filter((payment) => payment.currency === project.currency)
-    .reduce((total, payment) => total + Number(payment.amount), 0);
-
-  const outstanding = Math.max(totalProjectValue - totalPaid, 0);
-
+  const summary=projectFinancials(project,{payments,extras:extraWorks});
+  const contractValue=summary.contract,approvedExtraWorks=summary.extraValue,totalProjectValue=summary.totalValue,totalPaid=summary.received,outstanding=summary.outstanding;
   const sortedPayments = [...payments].sort(
     (a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -93,6 +78,7 @@ export default async function PaymentsPage({
           </Link>
         </div>
 
+        {summary.unmatchedCurrencies>0&&<p role="status" className="mt-5 rounded-xl bg-amber-50 p-4">Payments or approved extras in other currencies are excluded from these totals.</p>}
         {/* FINANCIAL SUMMARY */}
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-5">

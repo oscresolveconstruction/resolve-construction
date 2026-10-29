@@ -1,3 +1,5 @@
+import {randomUUID} from 'node:crypto';
+import PendingSubmit from '../../../../../components/PendingSubmit';
 import Link from "next/link";
 import { createExpense } from "../../../../../actions/expenses";
 import { db } from "../../../../../../src/prisma/db";
@@ -64,7 +66,7 @@ export default async function NewExpensePage({
           action={createExpense}
           encType="multipart/form-data"
           className="mt-8 rounded-xl border border-gray-100 bg-white p-8 shadow-sm"
-        >
+        ><input type="hidden" name="requestId" value={randomUUID()}/>
           <input
             type="hidden"
             name="projectId"
@@ -300,12 +302,12 @@ export default async function NewExpensePage({
               Cancel
             </Link>
 
-            <button
+            <PendingSubmit
               type="submit"
               className="rounded-lg bg-orange-500 px-6 py-3 font-medium text-white hover:bg-orange-600"
             >
               Save Expense & Receipt
-            </button>
+            </PendingSubmit>
           </div>
         </form>
       </div>

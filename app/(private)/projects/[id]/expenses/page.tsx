@@ -1,3 +1,4 @@
+import {convertedMoney,sumMoney} from '../../../../lib/finance/calculations.mjs';
 import Link from "next/link";
 import { db } from "../../../../../src/prisma/db";
 import DeleteExpenseButton from "../../../../components/DeleteExpenseButton";
@@ -37,23 +38,10 @@ export default async function ExpensesPage({
   const getProjectCost = (
     expense: (typeof expenses)[number]
   ) => {
-    const amount = Number(expense.amount);
-
-    if (expense.currency === project.currency) {
-      return amount;
-    }
-
-    const exchangeRate = expense.exchangeRate
-      ? Number(expense.exchangeRate)
-      : 0;
-
-    return amount * exchangeRate;
+    return convertedMoney(expense.amount,expense.currency,project.currency,expense.exchangeRate) ?? 0;
   };
 
-  const totalCosts = expenses.reduce(
-    (total, expense) => total + getProjectCost(expense),
-    0
-  );
+  const totalCosts = sumMoney(expenses.map(getProjectCost));
 
   const receiptsCount = expenses.filter(
     (expense) => expense.receiptFilePath

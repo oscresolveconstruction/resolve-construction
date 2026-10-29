@@ -1,3 +1,4 @@
+import {projectFinancials} from '../../../lib/finance/calculations.mjs';
 import Link from "next/link";
 
 import { notFound } from "next/navigation";
@@ -13,18 +14,6 @@ type ProjectPageProps = {
   params: Promise<{ id: string }>;
 
 };
-
-function money(value: number) {
-
-  return new Intl.NumberFormat("en-GB", {
-
-    style: "currency",
-
-    currency: "GBP",
-
-  }).format(value);
-
-}
 
 function getStatusStyle(status: string) {
 
@@ -104,158 +93,13 @@ export default async function ProjectPage({
 
     : null;
 
-  const contractValue = Number(project.contractValue);
-
-  const approvedExtraWorks = extraWorks
-
-    .filter((work) => work.status === "Approved")
-
-    .reduce((total, work) => total + Number(work.amount), 0);
-
-  const totalProjectValue = contractValue + approvedExtraWorks;
-
-  // Project contracts and payments are recorded in GBP.
-
-  // EUR expenses and labour use the exchange rate saved
-
-  // with each record.
-
-  const convertToGBP = (
-
-    amount: number,
-
-    currency: string,
-
-    exchangeRate: unknown
-
-  ) => {
-
-    if (currency === "GBP") {
-
-      return amount;
-
-    }
-
-    if (currency === "EUR") {
-
-      const rate =
-
-        exchangeRate === null || exchangeRate === undefined
-
-          ? 0
-
-          : Number(exchangeRate);
-
-      return rate > 0 ? amount * rate : 0;
-
-    }
-
-    return 0;
-
-  };
-
-  const totalExpenses = expenses.reduce(
-
-    (total, expense) =>
-
-      total +
-
-      convertToGBP(
-
-        Number(expense.amount),
-
-        expense.currency,
-
-        expense.exchangeRate
-
-      ),
-
-    0
-
-  );
-
-  const totalLabour = labourEntries.reduce(
-
-    (total, labour) =>
-
-      total +
-
-      convertToGBP(
-
-        Number(labour.amount),
-
-        labour.currency,
-
-        labour.exchangeRate
-
-      ),
-
-    0
-
-  );
-
-  const totalCosts = totalExpenses + totalLabour;
-
-  const totalPaid = payments.reduce(
-
-    (total, payment) =>
-
-      total +
-
-      (payment.currency === "GBP"
-
-        ? Number(payment.amount)
-
-        : 0),
-
-    0
-
-  );
-
-  const outstanding = Math.max(
-
-    totalProjectValue - totalPaid,
-
-    0
-
-  );
-
-  const estimatedProfit = totalProjectValue - totalCosts;
-
-  const profitMargin =
-
-    totalProjectValue > 0
-
-      ? (estimatedProfit / totalProjectValue) * 100
-
-      : 0;
-
-  const missingExchangeRates =
-
-    expenses.filter(
-
-      (expense) =>
-
-        expense.currency === "EUR" &&
-
-        (!expense.exchangeRate ||
-
-          Number(expense.exchangeRate) <= 0)
-
-    ).length +
-
-    labourEntries.filter(
-
-      (labour) =>
-
-        labour.currency === "EUR" &&
-
-        (!labour.exchangeRate ||
-
-          Number(labour.exchangeRate) <= 0)
-
-    ).length;
-
+  const money=(value:number)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:project.currency}).format(value);
+  const summary=projectFinancials(project,{expenses,labour:labourEntries,payments,extras:extraWorks});
+  const contractValue=summary.contract,approvedExtraWorks=summary.extraValue,totalProjectValue=summary.totalValue;
+  const totalExpenses=summary.expenses,totalLabour=summary.labour,totalCosts=summary.cost,totalPaid=summary.received;
+  const outstanding=summary.outstanding,estimatedProfit=summary.profit;
+  const profitMargin=totalProjectValue>0?(estimatedProfit/totalProjectValue)*100:0;
+  const missingExchangeRates=summary.missingRates;
   const managementItems = [
 
     {
@@ -507,19 +351,20 @@ export default async function ProjectPage({
 
           <span className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600">
 
-            GBP · £
+            {project.currency} · {project.currency==='EUR'?'€':'£'}
 
           </span>
 
         </div>
 
+        {summary.unmatchedCurrencies>0&&<p role="status" className="mt-5 rounded-xl bg-amber-50 p-4 text-amber-800">Some payments or approved extras use a different currency and are excluded from this project summary.</p>}
         {missingExchangeRates > 0 && (
 
           <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
 
             <strong>Exchange rate warning:</strong>{" "}
 
-            {missingExchangeRates} EUR expense or labour
+            {missingExchangeRates} expense or labour
 
             entries have no valid exchange rate. Their costs
 
@@ -583,7 +428,7 @@ export default async function ProjectPage({
 
             <p className="mt-3 text-2xl font-bold text-red-600">
 
-              {money(totalCosts)}
+              {missingExchangeRates?'Incomplete':money(totalCosts)}
 
             </p>
 
@@ -641,7 +486,7 @@ export default async function ProjectPage({
 
             <p className="mt-3 text-2xl font-bold text-orange-600">
 
-              {money(outstanding)}
+              {summary.unmatchedCurrencies?'Incomplete':money(outstanding)}
 
             </p>
 
@@ -675,13 +520,13 @@ export default async function ProjectPage({
 
             >
 
-              {money(estimatedProfit)}
+              {missingExchangeRates?'Incomplete':money(estimatedProfit)}
 
             </p>
 
             <p className="mt-3 text-xs font-semibold text-orange-700">
 
-              {profitMargin.toFixed(1)}% estimated margin
+              {missingExchangeRates?'Margin incomplete':`${profitMargin.toFixed(1)}% estimated margin`}
 
             </p>
 

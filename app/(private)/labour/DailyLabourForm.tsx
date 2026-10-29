@@ -1,6 +1,7 @@
 
 "use client";
 
+import PendingSubmit from "../../components/PendingSubmit";
 import { useState } from "react";
 import { createDailyLabour } from "@/app/actions/labour";
 
@@ -27,11 +28,12 @@ type Row = {
 };
 
 type Props = {
+  requestId:string;
   workers: Worker[];
   projects: Project[];
 };
 
-export default function DailyLabourForm({ workers, projects }: Props) {
+export default function DailyLabourForm({ workers, projects, requestId }: Props) {
   const [rows, setRows] = useState<Row[]>([
     { id: 1, workerId: "", projectId: "", hours: "" },
   ]);
@@ -87,7 +89,7 @@ export default function DailyLabourForm({ workers, projects }: Props) {
   }
 
   return (
-    <form action={createDailyLabour} className="min-w-0">
+    <form action={createDailyLabour} className="min-w-0"><input type="hidden" name="requestId" value={requestId}/>
       <input
         type="hidden"
         name="rows"
@@ -433,7 +435,7 @@ export default function DailyLabourForm({ workers, projects }: Props) {
       )}
 
       <div className="mt-6 flex justify-end">
-        <button
+        <PendingSubmit
           type="submit"
           disabled={
             workers.length === 0 ||
@@ -443,7 +445,7 @@ export default function DailyLabourForm({ workers, projects }: Props) {
           className="rounded-lg bg-orange-500 px-6 py-2.5 font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           Save Day
-        </button>
+        </PendingSubmit>
       </div>
     </form>
   );

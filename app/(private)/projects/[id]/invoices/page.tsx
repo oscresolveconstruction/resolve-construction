@@ -1,3 +1,4 @@
+import {projectFinancials} from '../../../../lib/finance/calculations.mjs';
 import { db } from "../../../../../src/prisma/db";
 import { notFound } from "next/navigation";
 
@@ -29,6 +30,7 @@ export default async function InvoicesPage({
     })
     .all();
 
+  const extras=await db.orm.public.ExtraWork.where({projectId}).all();
   // Buscar pagos del proyecto
   const payments = await db.orm.public.Payment
     .where({
@@ -37,7 +39,6 @@ export default async function InvoicesPage({
     .all();
 
   const symbol = project.currency === "EUR" ? "€" : "£";
-  const contractValue = Number(project.contractValue);
 
   const formatMoney = (value: number) => {
     return value.toLocaleString("en-GB", {
@@ -46,32 +47,11 @@ export default async function InvoicesPage({
     });
   };
 
-  // Total facturado
-  const totalInvoiced = invoices.reduce((total, invoice) => {
-    if (invoice.currency === project.currency && invoice.status !== 'Void') {
-      return total + Number(invoice.amount);
-    }
-
-    return total;
-  }, 0);
-
-  // Total pagado que está asociado a facturas
-  const totalPaid = payments.reduce((total, payment) => {
-    if (
-      payment.invoiceId !== null &&
-      payment.currency === project.currency
-    ) {
-      return total + Number(payment.amount);
-    }
-
-    return total;
-  }, 0);
-
-  const remainingToInvoice = contractValue - totalInvoiced;
-
-  // Dinero facturado pero todavía no cobrado
-  const outstandingInvoices = totalInvoiced - totalPaid;
-
+  const summary=projectFinancials(project,{invoices,extras,payments});
+  const totalInvoiced=summary.invoiced;
+  const totalPaid=payments.filter(p=>p.invoiceId!==null&&p.currency===project.currency).reduce((n,p)=>n+Math.round(Number(p.amount)*100),0)/100;
+  const remainingToInvoice=summary.remainingToInvoice;
+  const outstandingInvoices=Math.round((totalInvoiced-totalPaid)*100)/100;
   return (
     <main className="p-8">
       {/* Back */}
@@ -106,12 +86,12 @@ export default async function InvoicesPage({
       <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <p className="text-sm font-medium text-gray-500">
-            Contract Value
+            Total Project Value
           </p>
 
           <p className="mt-2 text-2xl font-bold text-gray-900">
             {symbol}
-            {formatMoney(contractValue)}
+            {formatMoney(summary.totalValue)}
           </p>
         </div>
 
