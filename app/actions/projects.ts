@@ -6,6 +6,7 @@ import { getSessionUserId } from "../lib/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Pool } from "pg";
+import {updateProjectDetails, ProjectUpdateError} from "../lib/project-update.mjs";
 import { retireProtectedProject, ProjectRemovalError } from "../lib/project-removal.mjs";
 import { cleanupProjectStorage } from "../lib/storage-cleanup";
 
@@ -70,7 +71,7 @@ function parseStartDate(value: string): string | null {
   if (!value) return null;
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new Error("Invalid project start date.");
+    throw new ProjectUpdateError("Invalid project start date.");
   }
 
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -79,7 +80,7 @@ function parseStartDate(value: string): string | null {
     Number.isNaN(date.getTime()) ||
     date.toISOString().slice(0, 10) !== value
   ) {
-    throw new Error("Invalid project start date.");
+    throw new ProjectUpdateError("Invalid project start date.");
   }
 
   return date.toISOString();
@@ -102,15 +103,15 @@ async function parseProjectFields(formData: FormData) {
   ).trim();
 
   if (!name) {
-    throw new Error("Project name is required.");
+    throw new ProjectUpdateError("Project name is required.");
   }
 
   if (name.length > 200) {
-    throw new Error("Project name is too long.");
+    throw new ProjectUpdateError("Project name is too long.");
   }
 
   if (!Number.isSafeInteger(customerId) || customerId <= 0) {
-    throw new Error("Please select a valid customer.");
+    throw new ProjectUpdateError("Please select a valid customer.");
   }
 
   const customer = await db.orm.public.Customer.first({
@@ -118,11 +119,11 @@ async function parseProjectFields(formData: FormData) {
   });
 
   if (!customer) {
-    throw new Error("Selected customer does not exist.");
+    throw new ProjectUpdateError("Selected customer does not exist.");
   }
 
   if (!/^\d+(\.\d{1,2})?$/.test(contractValue)) {
-    throw new Error(
+    throw new ProjectUpdateError(
       "Enter a valid contract value with up to two decimal places."
     );
   }
@@ -133,15 +134,15 @@ async function parseProjectFields(formData: FormData) {
     !Number.isFinite(contractAmount) ||
     !Number.isSafeInteger(Math.round(contractAmount * 100))
   ) {
-    throw new Error("Contract value is too large.");
+    throw new ProjectUpdateError("Contract value is too large.");
   }
 
   if (!ALLOWED_STATUSES.includes(status)) {
-    throw new Error("Invalid project status.");
+    throw new ProjectUpdateError("Invalid project status.");
   }
 
   if (description.length > 5000) {
-    throw new Error("Project description is too long.");
+    throw new ProjectUpdateError("Project description is too long.");
   }
 
   return {
@@ -175,25 +176,21 @@ export async function createProject(formData: FormData) {
 
 // UPDATE PROJECT
 export async function updateProject(formData: FormData) {
-  await requireOwner();
-
-  const projectId = validProjectId(
-    formData.get("projectId")
-  );
-
-  const existing = await db.orm.public.Project.first({
-    id: projectId,
-  });
-
-  if (!existing) {
-    throw new Error("Project not found.");
+  const projectId = Number(formData.get("projectId"));
+  let previousCustomerId: number | null = null;
+  let customerId: number | null = null;
+  try {
+    const actor = await requireOwner();
+    validProjectId(projectId);
+    const data = await parseProjectFields(formData);
+    const result = await updateProjectDetails(projectDeletionPool, actor, projectId, data);
+    previousCustomerId = result.previousCustomerId;
+    customerId = result.customerId;
+  } catch (error) {
+    if (error instanceof ProjectUpdateError) return {error:error.message};
+    console.error("Project update failed", error);
+    return {error:"Could not save the project. Please try again."};
   }
-
-  const data = await parseProjectFields(formData);
-
-  await db.orm.public.Project.where({
-    id: projectId,
-  }).update(data);
 
   revalidatePath("/");
   revalidatePath("/projects");
@@ -203,6 +200,8 @@ export async function updateProject(formData: FormData) {
   revalidatePath("/company-finances");
   revalidatePath("/customers");
 
+  if(previousCustomerId) revalidatePath(`/customers/${previousCustomerId}`);
+  if(customerId) revalidatePath(`/customers/${customerId}`);
   redirect(`/projects/${projectId}`);
 }
 

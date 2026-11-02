@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { createSupportingTables } from './schema-fixture.mjs';
 import {createMovementOnce,recordOnce} from '../app/lib/finance/requests.mjs';
 import {auditFinancialRecords} from '../app/lib/finance/audit.mjs';
+import {updateProjectDetails} from '../app/lib/project-update.mjs';
 import {retireProtectedProject} from '../app/lib/project-removal.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
 import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord, voidInvoice } from '../app/lib/commercial/service.mjs';
@@ -245,4 +246,33 @@ test('active invoices block project removal without deleting its expenses',async
  assert.equal((await pool.query('SELECT status FROM "Project" WHERE id=$1',[projectId])).rows[0].status,'Active');
  assert.equal((await pool.query('SELECT count(*) FROM "Expense" WHERE "projectId"=$1',[projectId])).rows[0].count,'1');
  assert.equal((await pool.query('SELECT count(*) FROM project_removal WHERE project_id=$1',[projectId])).rows[0].count,'0');
+});
+
+test('changing a project customer with receipts preserves its ledger and currency protection',async()=>{
+ const id=8001;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,"contractValue",status) VALUES($1,'Customer edit','Test customer',1,'GBP',695,'Active')`,[id]);
+ await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Supplier','Other',45.50,'GBP')`,[id]);
+ await pool.query(`INSERT INTO "Payment"("projectId",amount,currency,date) VALUES($1,100,'GBP',now())`,[id]);
+ const expenses=(await pool.query('SELECT * FROM "Expense" WHERE "projectId"=$1',[id])).rows;
+ const payments=(await pool.query('SELECT * FROM "Payment" WHERE "projectId"=$1',[id])).rows;
+ const data={name:'Customer edit',customerId:2,contractValue:'695.00',startDate:null,status:'Active',description:'Corrected client'};
+ await assert.rejects(updateProjectDetails(pool,2,id,data),/sign in/);
+ await updateProjectDetails(pool,1,id,data);
+ assert.equal((await pool.query('SELECT "customerId",client FROM "Project" WHERE id=$1',[id])).rows[0].customerId,2);
+ assert.equal((await pool.query('SELECT client FROM "Project" WHERE id=$1',[id])).rows[0].client,'Other customer');
+ assert.deepEqual((await pool.query('SELECT * FROM "Expense" WHERE "projectId"=$1',[id])).rows,expenses);
+ assert.deepEqual((await pool.query('SELECT * FROM "Payment" WHERE "projectId"=$1',[id])).rows,payments);
+ await assert.rejects(pool.query(`UPDATE "Project" SET currency='EUR' WHERE id=$1`,[id]),/currency cannot change/);
+});
+test('linked documents keep their customer and blocked edits roll back with a useful error',async()=>{
+ const id=8002;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,status) VALUES($1,'Protected customer','Test customer',1,'GBP','Active')`,[id]);
+ const source=await saveDocument(pool,1,draft({projectId:id}),issuer);
+ const before=(await pool.query('SELECT * FROM commercial_document WHERE id=$1',[source])).rows[0];
+ const data={name:'Changed name',customerId:2,contractValue:'100.00',startDate:null,status:'Active',description:null};
+ await assert.rejects(updateProjectDetails(pool,1,id,data),/linked estimates or invoices/);
+ assert.equal((await pool.query('SELECT name FROM "Project" WHERE id=$1',[id])).rows[0].name,'Protected customer');
+ assert.deepEqual((await pool.query('SELECT * FROM commercial_document WHERE id=$1',[source])).rows[0],before);
+ await updateProjectDetails(pool,1,id,{...data,customerId:1});
+ assert.equal((await pool.query('SELECT name FROM "Project" WHERE id=$1',[id])).rows[0].name,'Changed name');
 });
