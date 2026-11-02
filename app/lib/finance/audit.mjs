@@ -43,7 +43,7 @@ export function inspectLedger({projects=[],customers=[],expenses=[],labour=[],pa
   const billed=links.filter(l=>l.source_id===source.id&&iMap.get(l.invoice_id)?.status!=='Void').reduce((sum,l)=>sum+Number(l.amount_minor),0);
   if(billed+Number(source.previous_billed_minor||0)>Number(source.total_minor))flag('error','source_overbilled','document',[source.id]);
   if(source.extra_work_id){const extra=eMap.get(source.extra_work_id);if(!extra||extra.projectId!==source.project_id||extra.currency!==source.currency||pennies(extra.amount)!==Number(source.total_minor))flag('error','extra_link_mismatch','document',[source.id]);}
-  if(source.status==='Approved'&&source.kind==='quote'&&project&&pennies(project.contractValue)!==Number(source.total_minor))flag('warning','approved_quote_contract_differs','document',[source.id]);
+  if(source.status==='Approved'&&source.kind==='quote'&&project&&project.status!=='Deleted'&&pennies(project.contractValue)!==Number(source.total_minor))flag('warning','approved_quote_contract_differs','document',[source.id]);
  }
  function repeated(rows,key,kind,code,severity='warning'){
   const groups=new Map();for(const row of rows){const k=key(row);if(k==null)continue;groups.set(k,[...(groups.get(k)||[]),row.id]);}
@@ -66,7 +66,7 @@ export function inspectLedger({projects=[],customers=[],expenses=[],labour=[],pa
   const closed=payrolls.some(p=>p.workerId===entry.workerId&&p.month===day(entry.date).slice(0,7)&&p.status==='Closed');
   if(!closed&&pennies(entry.amount)!==pennies(moneyProduct(entry.hours,entry.hourlyRate)))flag('warning','provisional_labour_rounding_difference','labour',[entry.id]);
  }
- const summaries=projects.map(p=>({projectId:p.id,currency:p.currency,...projectFinancials(p,{expenses,labour,payments,extras,invoices})}));
+ const summaries=projects.filter(p=>p.status!=='Deleted').map(p=>({projectId:p.id,currency:p.currency,...projectFinancials(p,{expenses,labour,payments,extras,invoices})}));
  return {checkedAt:new Date().toISOString(),counts:{projects:projects.length,expenses:expenses.length,labour:labour.length,payments:payments.length,invoices:invoices.length,extras:extras.length,sources:sources.length,payrolls:payrolls.length},errors:findings.filter(f=>f.severity==='error').length,warnings:findings.filter(f=>f.severity==='warning').length,findings,projects:summaries};
 }
 export async function auditFinancialRecords(pool){
@@ -76,7 +76,7 @@ export async function auditFinancialRecords(pool){
   const data={};
   const queries={
    customers:'SELECT id FROM "Customer"',
-   projects:'SELECT id,"customerId",currency,"contractValue" FROM "Project"',
+   projects:'SELECT id,"customerId",currency,"contractValue",status FROM "Project"',
    expenses:'SELECT id,"projectId",date,amount,currency,"exchangeRate",supplier,description FROM "Expense"',
    labour:'SELECT id,"projectId","workerId",date,hours,"hourlyRate",amount,currency,"exchangeRate" FROM "Labour"',
    payments:'SELECT id,"projectId","invoiceId",date,amount,currency,reference,"paymentMethod" FROM "Payment"',

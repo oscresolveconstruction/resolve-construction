@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/src/prisma/db";
@@ -28,7 +29,7 @@ export default async function EditLabourPage({
   }
 
   const workers = await db.orm.public.Worker.all();
-  const projects = await db.orm.public.Project.all();
+  const projects = await listActiveProjects();
 
   const updateLabourWithId = updateLabour.bind(
     null,

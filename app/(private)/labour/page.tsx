@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 import {randomUUID} from 'node:crypto';
 import Link from "next/link";
 import { db } from "@/src/prisma/db";
@@ -10,7 +11,7 @@ function currencySymbol(currency: string) {
 
 export default async function LabourPage() {
   const workers = await db.orm.public.Worker.all();
-  const projects = await db.orm.public.Project.all();
+  const projects = await listActiveProjects();
   const labourEntries = await db.orm.public.Labour.all();
 
   const activeWorkers = workers

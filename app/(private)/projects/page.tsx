@@ -1,9 +1,9 @@
-﻿
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
+
 import Link from "next/link";
-import { db } from "../../../src/prisma/db";
 
 export default async function Projects() {
-  const projects = await db.orm.public.Project.all();
+  const projects = await listActiveProjects();
 
   function formatAmount(amount: number, currency: string) {
     return new Intl.NumberFormat("en-GB", {

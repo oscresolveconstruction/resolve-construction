@@ -220,6 +220,8 @@ export async function trashRecord(pool,actor,input) {
   const table=input.kind==='invoice'? '"Invoice"':'commercial_document';
   const record=(await c.query(`SELECT id FROM ${table} WHERE id=$1 FOR UPDATE`,[id])).rows[0];
   if(!record)throw new Error('Document not found');
+  const projectField=input.kind==='invoice'?'"projectId"':'project_id';
+  if(restore&&(await c.query(`SELECT 1 FROM ${table} d JOIN "Project" p ON p.id=d.${projectField} WHERE d.id=$1 AND p.status='Deleted'`,[id])).rowCount)throw new Error('The project was removed. This document is retained for history and cannot be restored.');
   if(restore)await c.query('DELETE FROM commercial_trash WHERE kind=$1 AND record_id=$2',[input.kind,id]);
   else await c.query('INSERT INTO commercial_trash(kind,record_id,deleted_by,reason) VALUES($1,$2,$3,$4) ON CONFLICT(kind,record_id) DO NOTHING',[input.kind,id,actor,reason]);
   return id;

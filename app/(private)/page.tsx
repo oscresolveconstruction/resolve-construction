@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 import {companyCostGBP,sumMoney,differenceMoney,projectFinancials} from '../lib/finance/calculations.mjs';
 import Link from "next/link";
 
@@ -83,7 +84,7 @@ export default async function Home({ searchParams }: DashboardProps) {
 
   const [projects, expenses, labour, payments, extraWorks] = await Promise.all([
 
-    db.orm.public.Project.all(),
+    listActiveProjects(),
 
     db.orm.public.Expense.all(),
 
