@@ -204,3 +204,19 @@ test('delete a project with a cancelled invoice, remove expenses and retain prot
  const removed=await page.goto(`/projects/${projectId}`);expect(removed?.status()).toBe(404);
  await page.goto('/labour');await expect(page.locator(`select option[value="${projectId}"]`)).toHaveCount(0);
 });
+
+test('edit customer on a project with expenses and show an inline explanation for linked documents',async({page,context},testInfo)=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ const id=testInfo.project.name==='chromium'?80011:80012;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,"contractValue",status) VALUES($1,'Editable customer fixture','Test customer',1,'GBP',695,'Active')`,[id]);
+ await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Fixture receipt','Other',45.50,'GBP')`,[id]);
+ await page.goto(`/projects/${id}/edit`);await page.locator('select[name=customerId]').selectOption('2');await page.getByRole('button',{name:'Save Changes',exact:true}).click();await expect(page).toHaveURL(`/projects/${id}`);
+ expect((await pool.query('SELECT "customerId",client FROM "Project" WHERE id=$1',[id])).rows[0]).toMatchObject({customerId:2,client:'Other customer'});
+ expect((await pool.query('SELECT amount FROM "Expense" WHERE "projectId"=$1',[id])).rows[0].amount).toBe('45.50');
+ const source=await saveDocument(pool,1,{kind:'quote',customerId:2,projectId:id,title:'Customer history fixture',currency:'GBP',issueDate:today,items:[{description:'Fixture',quantity:'1',unitPrice:'100'}]},{name:'Test issuer',bank:''});
+ await page.goto(`/projects/${id}/edit`);await page.locator('select[name=customerId]').selectOption('1');await page.getByRole('button',{name:'Save Changes',exact:true}).click();await expect(page.locator('form [role=alert]')).toContainText('linked estimates or invoices');await expect(page).toHaveURL(`/projects/${id}/edit`);await expect(page.getByRole('button',{name:'Save Changes',exact:true})).toBeEnabled();
+ expect((await pool.query('SELECT "customerId" FROM "Project" WHERE id=$1',[id])).rows[0].customerId).toBe(2);
+ expect((await pool.query('SELECT customer_id FROM commercial_document WHERE id=$1',[source])).rows[0].customer_id).toBe(2);
+ await page.locator('select[name=customerId]').selectOption('2');await page.locator('input[name=name]').fill('Updated other details');await page.getByRole('button',{name:'Save Changes',exact:true}).click();await expect(page).toHaveURL(`/projects/${id}`);
+});

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "../../../../../src/prisma/db";
-import { updateProject } from "../../../../actions/projects";
+import ProjectEditForm from "../../../../components/ProjectEditForm";
+import PendingSubmit from "../../../../components/PendingSubmit";
 import { getSessionUserId } from "../../../../lib/auth";
 import { redirect } from "next/navigation";
 
@@ -59,8 +60,7 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
           </p>
         </div>
 
-        <form
-          action={updateProject}
+        <ProjectEditForm
           className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
         >
           <div className="h-2 bg-orange-500" />
@@ -102,7 +102,7 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
                 ))}
               </select>
               <p className="mt-2 text-xs text-gray-500">
-                The customer name on the project will update to match this selection.
+                The customer name will update to match this selection. Linked estimates or invoices must keep their original customer.
               </p>
             </div>
 
@@ -180,15 +180,15 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
               >
                 Cancel
               </Link>
-              <button
+              <PendingSubmit
                 type="submit"
                 className="rounded-xl bg-orange-600 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-700"
               >
                 Save Changes
-              </button>
+              </PendingSubmit>
             </div>
           </div>
-        </form>
+        </ProjectEditForm>
       </div>
     </main>
   );
