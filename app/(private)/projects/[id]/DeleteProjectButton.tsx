@@ -15,6 +15,7 @@ export default function DeleteProjectButton({
 }: Props) {
   const confirmationRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const expected = `DELETE ${projectName}`;
 
@@ -22,14 +23,16 @@ export default function DeleteProjectButton({
     event: React.FormEvent<HTMLFormElement>
   ) {
     const warning =
-      `WARNING: PERMANENT PROJECT DELETION\n\n` +
+      `WARNING: PROJECT REMOVAL\n\n` +
       `Project: ${projectName}\n\n` +
-      `This will permanently delete:\n` +
+      `This removes the project and its operational records:\n` +
       `- The project\n` +
       `- Expenses and payments\n` +
       `- Invoices and extra works\n` +
       `- Labour records\n` +
       `- Photos and associated files\n\n` +
+      `Protected issued/cancelled documents are retained as history in Trash.\n` +
+      `Their project is removed from lists and totals.\n\n` +
       `This action cannot be undone.\n\n` +
       `Type exactly:\n${expected}`;
 
@@ -48,7 +51,12 @@ export default function DeleteProjectButton({
   }
 
   return (
-    <form action={deleteProject} onSubmit={handleSubmit}>
+    <form action={async (data) => {
+      setError("");
+      const result = await deleteProject(data);
+      if (result?.error) {setError(result.error);setSubmitting(false);}
+    }} onSubmit={handleSubmit}>
+      {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
       <input
         type="hidden"
         name="projectId"

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { SignJWT } from 'jose';
 import { Pool } from 'pg';
+import {saveDocument,transitionDocument,createManualInvoice,voidInvoice} from '../../app/lib/commercial/service.mjs';
+import {randomUUID} from 'node:crypto';
 import { renderDocumentPdf } from '../../app/lib/commercial/pdf.mjs';
 const pool=new Pool({connectionString:process.env.TEST_DATABASE_URL});
 const today=new Date().toISOString().slice(0,10);
@@ -169,4 +171,36 @@ test('financial reconciliation across project, costs, receipts, invoices and pay
  const report=await (await page.request.get('/api/financial-audit')).json();
  const summary=report.projects.find((p:{projectId:number})=>p.projectId===projectId);expect(summary).toMatchObject({cost:400.01,totalValue:1100,received:300,invoiced:500,outstanding:800,profit:699.99});
  expect(report.findings.filter((f:{kind:string;code:string;ids:number[]})=>f.kind==='payroll'&&f.code==='closed_payroll_allocation_mismatch'&&f.ids.includes(projectId))).toHaveLength(0);
+});
+
+test('delete a project with a cancelled invoice, remove expenses and retain protected PDF history',async({page,context},testInfo)=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ const projectId=testInfo.project.name==='chromium'?5001:5002;
+ const projectName=`Removed browser project ${projectId}`;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,"contractValue",status) VALUES($1,$2,'Test customer',1,'GBP',875,'Active')`,[projectId,projectName]);
+ const issuer={name:'Test issuer',bank:''};
+ const source=await saveDocument(pool,1,{kind:'quote',customerId:1,projectId,title:'Removed source',currency:'GBP',issueDate:today,items:[{description:'Fixture',quantity:'1',unitPrice:'344'}]},issuer);
+ await transitionDocument(pool,1,{id:source,revision:1,status:'Sent'});
+ await transitionDocument(pool,1,{id:source,revision:2,status:'Approved',approvedBy:'Test customer',approvedAt:today,evidence:'Fixture approval'});
+ const invoiceId=await createManualInvoice(pool,1,{sourceId:source,amount:'344',requestId:randomUUID(),description:'Fixture invoice',issueDate:today});
+ await voidInvoice(pool,1,{invoiceId,reason:'Fixture cancellation',confirm:'yes'});
+ await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Removal supplier','Other',10,'GBP'),($1,'Removal supplier','Other',20,'GBP'),($1,'Removal supplier','Other',31.47,'GBP')`,[projectId]);
+ const card=(label:string)=>page.getByText(label,{exact:true}).locator('..');
+ const numeric=(s:string)=>Number(s.replace(/[^\d.-]/g,''));
+ await page.goto('/company-finances');const before=numeric(await card('Total Project Value (contracts + approved extras)').locator('p').nth(1).innerText());
+ await page.goto(`/projects/${projectId}`);
+ page.once('dialog',dialog=>dialog.accept(`DELETE ${projectName}`));
+ await page.getByRole('button',{name:'Delete Project',exact:true}).click();await expect(page).toHaveURL('/projects');
+ await expect(page.getByRole('link',{name:projectName,exact:true})).toHaveCount(0);
+ expect((await pool.query('SELECT count(*) FROM "Expense" WHERE "projectId"=$1',[projectId])).rows[0].count).toBe('0');
+ expect((await pool.query('SELECT status FROM "Invoice" WHERE id=$1',[invoiceId])).rows[0].status).toBe('Void');
+ expect((await pool.query('SELECT count(*) FROM commercial_invoice_void WHERE invoice_id=$1',[invoiceId])).rows[0].count).toBe('1');
+ await page.goto('/invoices');await expect(page.locator(`a[href="/invoices/${invoiceId}"]`)).toHaveCount(0);
+ await page.goto('/invoices?trash=1');await expect(page.locator(`a[href="/invoices/${invoiceId}"]`)).toBeVisible();
+ const pdf=await page.request.get(`/api/documents/${invoiceId}/pdf?kind=invoice`);expect(pdf.status()).toBe(200);expect((await pdf.body()).subarray(0,5).toString()).toBe('%PDF-');
+ await page.goto('/company-finances');expect(before-numeric(await card('Total Project Value (contracts + approved extras)').locator('p').nth(1).innerText())).toBe(875);
+ await page.goto('/');await expect(page.getByRole('link',{name:projectName,exact:true})).toHaveCount(0);
+ const removed=await page.goto(`/projects/${projectId}`);expect(removed?.status()).toBe(404);
+ await page.goto('/labour');await expect(page.locator(`select option[value="${projectId}"]`)).toHaveCount(0);
 });

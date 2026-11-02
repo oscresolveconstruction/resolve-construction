@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 
 import Link from "next/link";
 import { db } from "../../../src/prisma/db";
@@ -5,7 +6,7 @@ import { db } from "../../../src/prisma/db";
 export default async function CustomersPage() {
   const [customers, projects] = await Promise.all([
     db.orm.public.Customer.all(),
-    db.orm.public.Project.all(),
+    listActiveProjects(),
   ]);
 
   const sortedCustomers = [...customers].sort((a, b) =>

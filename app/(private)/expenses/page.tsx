@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 
 import Link from "next/link";
 import { db } from "../../../src/prisma/db";
@@ -18,7 +19,7 @@ export default async function AllExpensesPage({
 
   const [expenses, projects] = await Promise.all([
     db.orm.public.Expense.all(),
-    db.orm.public.Project.all(),
+    listActiveProjects(),
   ]);
 
   const projectMap = new Map(

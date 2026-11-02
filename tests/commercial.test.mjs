@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { createSupportingTables } from './schema-fixture.mjs';
 import {createMovementOnce,recordOnce} from '../app/lib/finance/requests.mjs';
 import {auditFinancialRecords} from '../app/lib/finance/audit.mjs';
+import {retireProtectedProject} from '../app/lib/project-removal.mjs';
 import { migrate } from '../scripts/migrate-commercial.mjs';
 import { saveDocument, transitionDocument, createManualInvoice, allocatePayment, normalizeItems, reviseDocument, linkProject, importLegacyExtra, reviewHistoricalBilling, trashRecord, voidInvoice } from '../app/lib/commercial/service.mjs';
 let pg,pool;
@@ -206,4 +207,42 @@ test('financial identity guard and consistent read-only reconciliation',async()=
  const report=await auditFinancialRecords(pool);
  assert.ok(report.counts.projects>=3);assert.ok(Array.isArray(report.findings));
  assert.equal((await pool.query('SELECT count(*) AS n FROM "Payment"')).rows[0].n,before);
+});
+
+async function retireFixture(projectId,actor=1) {
+ const c=await pool.connect();
+ try {await c.query('BEGIN');const project=(await c.query('SELECT id,name FROM "Project" WHERE id=$1 FOR UPDATE',[projectId])).rows[0];const result=await retireProtectedProject(c,actor,project);await c.query('COMMIT');return result;}
+ catch(error){await c.query('ROLLBACK');throw error;}finally{c.release();}
+}
+test('remove a project with a cancelled invoice atomically, preserve protected history and reject new records',async()=>{
+ const projectId=4001;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,"contractValue",status) VALUES($1,'Removed fixture','Test customer',1,'GBP',875,'Active')`,[projectId]);
+ const source=await saveDocument(pool,1,draft({projectId}),issuer);await approve(source);
+ const id=await createManualInvoice(pool,1,invoice(source));await voidInvoice(pool,1,{invoiceId:id,confirm:'yes',reason:'Fixture cancellation'});
+ await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Removal fixture','Other',61.47,'GBP')`,[projectId]);
+ const invoiceBefore=(await pool.query('SELECT * FROM "Invoice" WHERE id=$1',[id])).rows[0];
+ await assert.rejects(retireFixture(projectId,2),/Unauthorized/);
+ assert.equal(await retireFixture(projectId),true);
+ assert.equal(await retireFixture(projectId),true);
+ assert.equal((await pool.query('SELECT status FROM "Project" WHERE id=$1',[projectId])).rows[0].status,'Deleted');
+ assert.equal((await pool.query('SELECT count(*) FROM "Expense" WHERE "projectId"=$1',[projectId])).rows[0].count,'0');
+ assert.deepEqual((await pool.query('SELECT * FROM "Invoice" WHERE id=$1',[id])).rows[0],invoiceBefore);
+ assert.equal((await pool.query('SELECT expense_count,expense_amount FROM project_removal WHERE project_id=$1',[projectId])).rows[0].expense_count,1);
+ assert.equal((await pool.query('SELECT count(*) FROM project_removal WHERE project_id=$1',[projectId])).rows[0].count,'1');
+ await assert.rejects(trashRecord(pool,1,{kind:'document',id:source,operation:'restore'}),/project was removed/);
+ await assert.rejects(pool.query(`INSERT INTO "Payment"("projectId",amount,currency,date) VALUES($1,1,'GBP',now())`,[projectId]),/Project has been removed/);
+ await assert.rejects(pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Late','Other',1,'GBP')`,[projectId]),/Project has been removed/);
+ await assert.rejects(pool.query(`UPDATE "Project" SET status='Active' WHERE id=$1`,[projectId]),/history cannot be changed/);
+ await assert.rejects(pool.query('DELETE FROM "Invoice" WHERE id=$1',[id]),/immutable/);
+ const report=await auditFinancialRecords(pool);assert.equal(report.projects.some(p=>p.projectId===projectId),false);
+});
+test('active invoices block project removal without deleting its expenses',async()=>{
+ const projectId=4002;
+ await pool.query(`INSERT INTO "Project"(id,name,client,"customerId",currency,status) VALUES($1,'Active billing fixture','Test customer',1,'GBP','Active')`,[projectId]);
+ const source=await saveDocument(pool,1,draft({projectId}),issuer);await approve(source);await createManualInvoice(pool,1,invoice(source));
+ await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES($1,'Keep expense','Other',10,'GBP')`,[projectId]);
+ await assert.rejects(retireFixture(projectId),/Cancel active invoices/);
+ assert.equal((await pool.query('SELECT status FROM "Project" WHERE id=$1',[projectId])).rows[0].status,'Active');
+ assert.equal((await pool.query('SELECT count(*) FROM "Expense" WHERE "projectId"=$1',[projectId])).rows[0].count,'1');
+ assert.equal((await pool.query('SELECT count(*) FROM project_removal WHERE project_id=$1',[projectId])).rows[0].count,'0');
 });

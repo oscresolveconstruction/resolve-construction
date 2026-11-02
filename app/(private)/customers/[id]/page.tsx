@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,7 +32,7 @@ export default async function CustomerDetailsPage({
     notFound();
   }
 
-  const allProjects = await db.orm.public.Project.all();
+  const allProjects = await listActiveProjects();
 
   const projects = allProjects
     .filter((project) => project.customerId === customerId)

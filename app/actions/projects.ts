@@ -6,6 +6,7 @@ import { getSessionUserId } from "../lib/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Pool } from "pg";
+import { retireProtectedProject, ProjectRemovalError } from "../lib/project-removal.mjs";
 import { cleanupProjectStorage } from "../lib/storage-cleanup";
 
 const ALLOWED_STATUSES = [
@@ -62,6 +63,7 @@ async function requireOwner() {
   if (!user || !user.isActive) {
     throw new Error("Unauthorized. Please sign in.");
   }
+  return user.id;
 }
 
 function parseStartDate(value: string): string | null {
@@ -206,7 +208,7 @@ export async function updateProject(formData: FormData) {
 
 // DELETE PROJECT
 export async function deleteProject(formData: FormData) {
-  await requireOwner();
+  const actor = await requireOwner();
 
   const projectId = validProjectId(
     formData.get("projectId")
@@ -369,6 +371,8 @@ export async function deleteProject(formData: FormData) {
       );
     }
 
+    const retired = await retireProtectedProject(client, actor, project);
+    if (!retired) {
     // Delete related records.
     await client.query(
       `DELETE FROM public."Payment"
@@ -418,6 +422,7 @@ export async function deleteProject(formData: FormData) {
       throw new Error("Unable to delete project.");
     }
 
+    }
     await client.query("COMMIT");
     committed = true;
   } catch (error) {
@@ -432,6 +437,7 @@ export async function deleteProject(formData: FormData) {
       }
     }
 
+    if (error instanceof ProjectRemovalError) return {error:error.message};
     throw error;
   } finally {
     client.release();
@@ -453,7 +459,10 @@ export async function deleteProject(formData: FormData) {
   revalidatePath("/company-finances");
   revalidatePath("/customers");
   revalidatePath("/workers");
-  revalidatePath("/daily-labour");
+  revalidatePath("/labour");
+  revalidatePath("/expenses");
+  revalidatePath("/invoices");
+  revalidatePath("/quotes");
 
   redirect("/projects");
 }

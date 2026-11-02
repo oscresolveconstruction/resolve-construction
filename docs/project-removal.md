@@ -1,0 +1,9 @@
+# Removing projects with protected document history
+
+The legacy deletion transaction attempted to delete issued/cancelled invoices and failed on the immutability trigger. Projects with protected sources or cancelled invoices now retain a minimal parent record with status Deleted, outside project lists, selectors, customer/project summaries and company/dashboard contract totals. Linked documents move to Trash, retain their numbers, PDFs, approval/cancellation history and original project relation, and cannot be restored into a removed project. Invoice protections are unchanged.
+
+The confirmed operation deletes the project expenses and photos and reuses the existing validated storage-cleanup queue. A project_removal record retains the actor, time, project snapshot and expense count/amount. Migration 005 adds this journal and write guards without changing existing business records. New financial/photo/source writes into removed projects and edits to removed parents are rejected. Direct project routes return 404.
+
+Protected projects with active invoices, recorded payments, labour allocations or extra works must first be reviewed. They return a clear inline message and roll back the whole transaction. This change does not bypass payment or payroll controls or silently discard protected additional works. Ordinary projects without protected document history use the existing deletion path.
+
+Regression coverage exercises the cancelled-invoice case, preserved invoice/cancellation rows, repeated removal, disabled owners, failed active-invoice removal with expenses intact, blocked new financial writes and restore attempts, hidden project selectors, financial totals, 404 routes and retained cancelled PDF downloads on desktop/mobile browsers. Production removal remains an explicit owner-confirmed action after successful CI and deployment.

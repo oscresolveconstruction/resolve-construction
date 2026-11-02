@@ -1,3 +1,4 @@
+import { activeProjects as listActiveProjects } from '@/app/lib/active-projects';
 import TrashDocument from '../../../components/TrashDocument';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -14,7 +15,7 @@ export default async function DocumentPage({params}:{params:Promise<{quoteId:str
  const pool=getPayrollPool(); const d=(await pool.query('SELECT *,issue_date::text AS issue_day,valid_until::text AS valid_day FROM commercial_document WHERE id=$1',[id])).rows[0]; if(!d)notFound();
  const invoices=(await pool.query('SELECT i.*,ci.amount_minor FROM commercial_invoice ci JOIN "Invoice" i ON i.id=ci.invoice_id WHERE ci.source_id=$1 ORDER BY i.id',[id])).rows;
  const audit=(await pool.query('SELECT a.*,u.name FROM commercial_audit a JOIN "AppUser" u ON u.id=a.actor_id WHERE document_id=$1 ORDER BY a.id',[id])).rows;
- const projects=await db.orm.public.Project.all();
+ const projects=await listActiveProjects();
  const remaining=Number(d.total_minor)-Number(d.previous_billed_minor)-invoices.reduce((s,i)=>s+(i.status==='Void'?0:Number(i.amount_minor)),0);
  const field='block w-full rounded border p-2';
  const hidden=<><input type="hidden" name="id" value={id}/><input type="hidden" name="revision" value={d.revision}/></>;
