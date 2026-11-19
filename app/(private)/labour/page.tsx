@@ -61,6 +61,8 @@ export default async function LabourPage() {
         </p>
       </div>
 
+      <Link href="/labour/reallocate" className="inline-block mb-6 text-orange-600 hover:underline">Move hours between projects →</Link>
+
       <DailyLabourForm requestId={randomUUID()}
         workers={activeWorkers}
         projects={projectOptions}

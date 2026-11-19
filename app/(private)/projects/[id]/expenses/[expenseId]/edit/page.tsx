@@ -1,3 +1,6 @@
+import {randomUUID} from "node:crypto";
+import MoveExpenseForm from "@/app/components/MoveExpenseForm";
+import {activeProjects} from "@/app/lib/active-projects";
 import Link from "next/link";
 import { db } from "../../../../../../../src/prisma/db";
 import { notFound } from "next/navigation";
@@ -42,6 +45,8 @@ export default async function EditExpensePage({
   if (!expense || expense.projectId !== projectId) {
     notFound();
   }
+
+  const destinations=(await activeProjects()).filter(p=>p.id!==projectId&&p.currency===project.currency).map(p=>({id:p.id,name:p.name}));
 
   const formatDateForInput = (date: string) => {
     return new Date(date).toISOString().split("T")[0];
@@ -406,6 +411,7 @@ export default async function EditExpensePage({
             </button>
           </div>
         </form>
+        <MoveExpenseForm id={expense.id} updatedAt={new Date(expense.updatedAt).toISOString()} requestId={randomUUID()} projects={destinations}/>
       </div>
     </main>
   );

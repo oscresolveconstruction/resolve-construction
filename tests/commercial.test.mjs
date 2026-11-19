@@ -276,3 +276,53 @@ test('linked documents keep their customer and blocked edits roll back with a us
  await updateProjectDetails(pool,1,id,{...data,customerId:1});
  assert.equal((await pool.query('SELECT name FROM "Project" WHERE id=$1',[id])).rows[0].name,'Changed name');
 });
+
+test('project reallocation preserves closed payroll totals, cents, rates and dates; retries do not duplicate',async()=>{
+ const {reallocateLabour}=await import('../app/lib/labour-allocation.mjs');
+ await pool.query(`INSERT INTO "Worker"(id,name,"hourlyRate",currency,status) VALUES(9001,'Allocation fixture',10.53,'GBP','Active')`);
+ await pool.query(`INSERT INTO "MonthlyPayroll"("workerId",month,"grossPay","employerSocialInsurance",status) VALUES(9001,'2026-10',158.71,0,'Closed')`);
+ const records=(await pool.query(`INSERT INTO "Labour"("workerId","projectId",date,hours,"hourlyRate",amount,currency) VALUES(9001,1,'2026-10-15',8,9.9194,79.36,'GBP'),(9001,1,'2026-10-16',8,9.9194,79.35,'GBP') RETURNING *`)).rows;
+ const payroll=(await pool.query('SELECT * FROM "MonthlyPayroll" WHERE "workerId"=9001')).rows[0];
+ const input={requestId:randomUUID(),projectId:3,entries:records.map((r,i)=>({id:r.id,hours:i?'4':'8',expectedUpdatedAt:r.updatedAt.toISOString()}))};
+ await assert.rejects(reallocateLabour(pool,2,input),/Unauthorized/);
+ await assert.rejects(reallocateLabour(pool,1,{...input,projectId:2}),/currenc/);
+ const results=await Promise.all([reallocateLabour(pool,1,input),reallocateLabour(pool,1,input)]);
+ assert.equal(results.filter(r=>r.duplicate).length,1);
+ const after=(await pool.query('SELECT * FROM "Labour" WHERE "workerId"=9001 ORDER BY id')).rows;
+ assert.equal(after.length,3);assert.equal(after.reduce((s,r)=>s+Number(r.hours),0),16);
+ assert.equal(after.reduce((s,r)=>s+Math.round(Number(r.amount)*100),0),15871);
+ assert.equal(after[0].projectId,3);assert.equal(after[0].id,records[0].id);assert.equal(after[0].amount,'79.36');
+ assert.equal(after[1].hours,'4.00');assert.equal(after[1].amount,'39.67');assert.equal(after[2].amount,'39.68');
+ assert.ok(after.every(r=>r.hourlyRate==='9.9194'&&r.currency==='GBP'));
+ assert.equal(after[2].date.toISOString(),records[1].date.toISOString());
+ assert.deepEqual((await pool.query('SELECT * FROM "MonthlyPayroll" WHERE "workerId"=9001')).rows[0],payroll);
+ await assert.rejects(reallocateLabour(pool,1,{...input,requestId:randomUUID()}),/changed|already/);
+ const audit=await auditFinancialRecords(pool);
+ assert.ok(!audit.findings.some(f=>f.code==='closed_payroll_allocation_mismatch'&&f.ids?.includes(payroll.id)));
+});
+
+test('invalid second allocation rolls back the entire batch; concurrent requests apply once',async()=>{
+ const {reallocateLabour}=await import('../app/lib/labour-allocation.mjs');
+ const records=(await pool.query(`INSERT INTO "Labour"("workerId","projectId",date,hours,"hourlyRate",amount,currency) VALUES(9001,1,'2026-11-02',8,10,80,'GBP'),(9001,1,'2026-11-03',6,10,60,'GBP') RETURNING *`)).rows;
+ const entries=records.map(r=>({id:r.id,hours:String(r.hours),expectedUpdatedAt:r.updatedAt.toISOString()}));
+ await assert.rejects(reallocateLabour(pool,1,{requestId:randomUUID(),projectId:3,entries:[entries[0],{...entries[1],hours:'7'}]}),/more/);
+ assert.deepEqual((await pool.query('SELECT * FROM "Labour" WHERE id=ANY($1::int[]) ORDER BY id',[records.map(r=>r.id)])).rows,records);
+ await assert.rejects(reallocateLabour(pool,1,{requestId:randomUUID(),projectId:3,entries:[entries[0],entries[0]]}),/repeated/);
+ const attempts=await Promise.allSettled([1,2].map(()=>reallocateLabour(pool,1,{requestId:randomUUID(),projectId:3,entries})));
+ assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal((await pool.query('SELECT count(*) FROM "Labour" WHERE id=ANY($1::int[]) AND "projectId"=3',[records.map(r=>r.id)])).rows[0].count,'2');
+});
+
+test('expense project move keeps the original ID, financial fields and receipt; retries are idempotent',async()=>{
+ const {moveExpense}=await import('../app/lib/expense-allocation.mjs');
+ const before=(await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,description,amount,currency,"exchangeRate","receiptFileName","receiptFilePath","receiptMimeType") VALUES(1,'Allocation fixture','Other','Existing overtime',47.39,'GBP',NULL,'fixture.pdf','private/fixture.pdf','application/pdf') RETURNING *`)).rows[0];
+ const input={id:before.id,projectId:3,expectedUpdatedAt:before.updatedAt.toISOString(),requestId:randomUUID()};
+ await assert.rejects(moveExpense(pool,2,input),/Unauthorized/);
+ await assert.rejects(moveExpense(pool,1,{...input,projectId:2}),/currency/);
+ const results=await Promise.all([moveExpense(pool,1,input),moveExpense(pool,1,input)]);
+ assert.equal(results.filter(r=>r.duplicate).length,1);
+ const after=(await pool.query('SELECT * FROM "Expense" WHERE id=$1',[before.id])).rows[0];
+ assert.deepEqual({...after,projectId:before.projectId,updatedAt:before.updatedAt},before);
+ assert.equal(after.projectId,3);
+ await assert.rejects(moveExpense(pool,1,{...input,projectId:1,requestId:randomUUID()}),/changed/);
+});
