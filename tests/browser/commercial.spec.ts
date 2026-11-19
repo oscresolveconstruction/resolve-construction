@@ -220,3 +220,23 @@ test('edit customer on a project with expenses and show an inline explanation fo
  expect((await pool.query('SELECT customer_id FROM commercial_document WHERE id=$1',[source])).rows[0].customer_id).toBe(2);
  await page.locator('select[name=customerId]').selectOption('2');await page.locator('input[name=name]').fill('Updated other details');await page.getByRole('button',{name:'Save Changes',exact:true}).click();await expect(page).toHaveURL(`/projects/${id}`);
 });
+
+test('owner reviews and splits existing hours without changing closed payroll cost',async({page,context})=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ const worker=(await pool.query(`INSERT INTO "Worker"(name,"hourlyRate",currency,status) VALUES('Browser allocation',10.53,'GBP','Active') RETURNING id`)).rows[0];
+ await pool.query(`INSERT INTO "MonthlyPayroll"("workerId",month,"grossPay","employerSocialInsurance",status) VALUES($1,'2026-10',79.35,0,'Closed')`,[worker.id]);
+ const row=(await pool.query(`INSERT INTO "Labour"("workerId","projectId",date,hours,"hourlyRate",amount,currency) VALUES($1,1,'2026-10-20',8,9.9194,79.35,'GBP') RETURNING id`,[worker.id])).rows[0];
+ await page.goto('/labour/reallocate');
+ await page.getByLabel('Destination project',{exact:true}).selectOption('3');
+ await page.getByLabel(`Select entry ${row.id}`,{exact:true}).check();
+ await page.getByLabel(`Hours to move for entry ${row.id}`,{exact:true}).fill('4');
+ await page.getByRole('button',{name:'Review move',exact:true}).click();
+ await expect(page.getByText('1 entries selected · 4.00 hours to move',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Confirm move',exact:true}).click();
+ await expect(page).toHaveURL(/\/labour\?reallocated=1/);
+ const original=(await pool.query('SELECT * FROM "Labour" WHERE id=$1',[row.id])).rows[0];
+ expect(original.hours).toBe('4.00');expect(original.amount).toBe('39.67');
+ const moved=(await pool.query('SELECT * FROM "Labour" WHERE description=$1',[`Split from labour ${row.id}; original recorded cost preserved.`])).rows;
+ expect(moved).toHaveLength(1);expect(moved[0].hours).toBe('4.00');expect(moved[0].amount).toBe('39.68');expect(moved[0].projectId).toBe(3);
+});

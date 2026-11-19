@@ -45,3 +45,11 @@ test('reconciliation flags suspicious duplicates, orphan links and allocation er
  const before=JSON.stringify(f),report=inspectLedger(f);assert.equal(JSON.stringify(f),before);
  for(const code of ['possible_duplicate','invoice_overpaid','closed_payroll_allocation_mismatch','payment_on_cancelled_invoice','missing_billing_link','source_line_sum_mismatch'])assert.ok(report.findings.some(i=>i.code===code),code);
 });
+
+test('recorded-cost splits conserve every penny, including half pennies and zero-cost workers',async()=>{
+ const {splitRecordedCost}=await import('../app/lib/labour-allocation.mjs');
+ assert.deepEqual(splitRecordedCost('8','79.35','4'),{movedHours:'4.00',remainingHours:'4.00',movedAmount:'39.68',remainingAmount:'39.67'});
+ assert.deepEqual(splitRecordedCost('6','59.52','3'),{movedHours:'3.00',remainingHours:'3.00',movedAmount:'29.76',remainingAmount:'29.76'});
+ assert.equal(splitRecordedCost('8','0','4').movedAmount,'0.00');
+ for(const h of ['0','9','1.001','-1','NaN'])assert.throws(()=>splitRecordedCost('8','79.35',h));
+});
