@@ -312,3 +312,17 @@ test('invalid second allocation rolls back the entire batch; concurrent requests
  assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);
  assert.equal((await pool.query('SELECT count(*) FROM "Labour" WHERE id=ANY($1::int[]) AND "projectId"=3',[records.map(r=>r.id)])).rows[0].count,'2');
 });
+
+test('expense project move keeps the original ID, financial fields and receipt; retries are idempotent',async()=>{
+ const {moveExpense}=await import('../app/lib/expense-allocation.mjs');
+ const before=(await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,description,amount,currency,"exchangeRate","receiptFileName","receiptFilePath","receiptMimeType") VALUES(1,'Allocation fixture','Other','Existing overtime',47.39,'GBP',NULL,'fixture.pdf','private/fixture.pdf','application/pdf') RETURNING *`)).rows[0];
+ const input={id:before.id,projectId:3,expectedUpdatedAt:before.updatedAt.toISOString(),requestId:randomUUID()};
+ await assert.rejects(moveExpense(pool,2,input),/Unauthorized/);
+ await assert.rejects(moveExpense(pool,1,{...input,projectId:2}),/currency/);
+ const results=await Promise.all([moveExpense(pool,1,input),moveExpense(pool,1,input)]);
+ assert.equal(results.filter(r=>r.duplicate).length,1);
+ const after=(await pool.query('SELECT * FROM "Expense" WHERE id=$1',[before.id])).rows[0];
+ assert.deepEqual({...after,projectId:before.projectId,updatedAt:before.updatedAt},before);
+ assert.equal(after.projectId,3);
+ await assert.rejects(moveExpense(pool,1,{...input,projectId:1,requestId:randomUUID()}),/changed/);
+});

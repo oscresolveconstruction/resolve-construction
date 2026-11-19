@@ -240,3 +240,15 @@ test('owner reviews and splits existing hours without changing closed payroll co
  const moved=(await pool.query('SELECT * FROM "Labour" WHERE description=$1',[`Split from labour ${row.id}; original recorded cost preserved.`])).rows;
  expect(moved).toHaveLength(1);expect(moved[0].hours).toBe('4.00');expect(moved[0].amount).toBe('39.68');expect(moved[0].projectId).toBe(3);
 });
+
+test('owner moves an existing expense and keeps its recorded amount',async({page,context})=>{
+ const token=await new SignJWT({userId:1}).setProtectedHeader({alg:'HS256'}).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.SESSION_SECRET));
+ await context.addCookies([{name:'resolve_session',value:token,domain:'127.0.0.1',path:'/'}]);
+ const row=(await pool.query(`INSERT INTO "Expense"("projectId",supplier,category,amount,currency) VALUES(1,'Browser overtime move','Other',47.39,'GBP') RETURNING *`)).rows[0];
+ await page.goto(`/projects/1/expenses/${row.id}/edit`);
+ await page.getByRole('combobox',{name:'Destination project',exact:true}).selectOption('3');
+ await page.getByRole('button',{name:'Move expense',exact:true}).click();
+ await expect(page).toHaveURL('/projects/3/expenses');
+ const after=(await pool.query('SELECT * FROM "Expense" WHERE id=$1',[row.id])).rows[0];
+ expect({...after,projectId:row.projectId,updatedAt:row.updatedAt}).toEqual(row);expect(after.projectId).toBe(3);
+});
